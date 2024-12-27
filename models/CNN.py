@@ -19,7 +19,7 @@ class CNNModel(nn.Module):
 
         # Replace output layer according to our problem
         in_feats = self.vgg16.classifier[6].in_features
-        self.vgg16.classifier[6] = nn.Linear(in_feats, 4)
+        self.vgg16.classifier[6] = nn.Linear(in_feats, 8)
 
     def forward(self, x):
         x = self.vgg16(x)
