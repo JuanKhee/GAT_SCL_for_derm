@@ -1,11 +1,12 @@
 import numpy as np
 import sys
+import torch
 import torch.nn as nn
 import torchvision
 import torchvision.models as models
 import torchvision.transforms as transforms
-from SkinDiseaseClassifierSCL import SkinDiseaseClassifier
-from losses.loss_functions import SupConLoss
+from SkinDiseaseClassifierMTSCL import SkinDiseaseClassifier
+from losses.loss_functions import SupConCELoss
 from utils.supcon_utils import TwoCropTransform
 
 np.set_printoptions(threshold=sys.maxsize)
@@ -23,15 +24,15 @@ class CNNModel(nn.Module):
         x = self.vgg16(x)
         return x
 
-
+print(torch.randint(5, (3,), dtype=torch.int64))
 vgg16_model = CNNModel()
 dev_classifier = SkinDiseaseClassifier(
     vgg16_model,
     epochs=2,
     batch_size=16,
     learning_rate=0.0001,
-    output_dir='dev_model_result_vgg16_SCL',
-    criterion=SupConLoss()
+    output_dir='dev_model_result_vgg16_MTSCL3',
+    criterion=SupConCELoss()
 )
 
 train_transform = TwoCropTransform(transforms.Compose([

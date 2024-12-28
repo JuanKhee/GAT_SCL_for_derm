@@ -90,6 +90,7 @@ class SkinDiseaseClassifier():
         acc_progress = {}
         print(f'Total number of batches: {len(self.train_loader)}')
         # Iterate x epochs over the train data
+        self.model.train()
         for epoch in range(self.epochs):
             epoch_loss = []
             epoch_acc = []
@@ -143,6 +144,7 @@ class SkinDiseaseClassifier():
         all_labels = np.array([])
         all_outputs = np.array([])
 
+        self.model.eval()
         for i, batch in enumerate(self.test_loader, 0):
             inputs, labels = batch
             inputs = inputs.to(self.device)
@@ -160,7 +162,7 @@ class SkinDiseaseClassifier():
 
 
 if __name__ == "__main__":
-    from losses.SupConLoss import SupConLoss
+    from losses.loss_functions import SupConLoss
     from utils.supcon_utils import TwoCropTransform
 
     np.set_printoptions(threshold=sys.maxsize)

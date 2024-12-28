@@ -12,6 +12,7 @@ import copy
 import pandas as pd 
 import sys
 from sklearn.metrics import classification_report
+import cv2
 
 
 class SkinDiseaseClassifier():
@@ -96,15 +97,32 @@ class SkinDiseaseClassifier():
             for i, batch in enumerate(self.train_loader, 0):
                 print(f'epoch {epoch}, batch {i}')
                 inputs, labels = batch
+                inputs = torch.cat([inputs[0], inputs[1]], dim=0)
+                # print(inputs.shape)
+                # cv2.imshow('0', inputs[0].permute(1,2,0).numpy())
+                # cv2.waitKey(0)
+                # cv2.imshow('1', inputs[1].permute(1,2,0).numpy())
+                # cv2.waitKey(1)
+                # cv2.imshow('2', inputs[2].permute(1,2,0).numpy())
+                # cv2.waitKey(1)
                 inputs = inputs.to(self.device)
                 labels = labels.to(self.device)
+                bsz = labels.shape[0]
                 self.optimizer.zero_grad()
                 outputs = self.model(inputs)
+                f1, f2 = torch.split(outputs, [bsz, bsz], dim=0)
+                outputs = torch.cat([f1.unsqueeze(1), f2.unsqueeze(1)], dim=1)
+
+                ce_outputs = self.model(inputs)
+                ce_labels = torch.cat([labels,labels],dim=0)
+
                 # Labels are automatically one-hot-encoded
-                loss = self.criterion(outputs, labels)
+                loss = self.criterion(outputs, labels, ce_outputs=ce_outputs, ce_labels=ce_labels)
                 loss.backward()
                 self.optimizer.step()
-                acc = np.average(outputs.max(1).indices.detach().cpu().numpy() == labels.detach().cpu().numpy())
+                print(outputs.max(2).indices.detach().cpu().numpy()[:,0])
+                print(labels)
+                acc = np.average(outputs.max(2).indices.detach().cpu().numpy()[:,0] == labels.detach().cpu().numpy())
                 print(f'  loss: {loss.item()}')
                 print(f'  acc : {acc}')
                 epoch_loss.append(loss.item())
@@ -136,9 +154,9 @@ class SkinDiseaseClassifier():
             labels = labels.numpy()
             outputs = self.model(inputs)
             print(outputs)
-            print(outputs.size())
             outputs = outputs.max(1).indices.detach().cpu().numpy()
             print(outputs)
+            print(labels)
             print(f"Batch {i} accuracy: ", (labels == outputs).sum() / len(labels))
             all_labels = np.concatenate((all_labels, labels), axis=None)
             all_outputs = np.concatenate((all_outputs, outputs), axis=None)
@@ -147,6 +165,9 @@ class SkinDiseaseClassifier():
 
 
 if __name__ == "__main__":
+    from losses.loss_functions import SupConLoss
+    from utils.supcon_utils import TwoCropTransform
+
     np.set_printoptions(threshold=sys.maxsize)
 
     class CNNModel(nn.Module):
@@ -162,13 +183,47 @@ if __name__ == "__main__":
             x = self.vgg16(x)
             return x
 
+
     vgg16_model = CNNModel()
-    dev_classifier = SkinDiseaseClassifier(vgg16_model, epochs=2, output_dir='dev_model_result')
+    dev_classifier = SkinDiseaseClassifier(
+        vgg16_model,
+        epochs=2,
+        batch_size=2,
+        learning_rate=0.0001,
+        output_dir='dev_model_result_vgg16_SCL2',
+        criterion=SupConLoss()
+    )
+
+    train_transform = TwoCropTransform(transforms.Compose([
+        transforms.Resize(size=(255, 255)),
+        transforms.RandomResizedCrop(size=(255, 255), scale=(0.7,1.0)),
+        transforms.RandomHorizontalFlip(),
+        transforms.RandomApply([
+            transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)
+        ], p=0.8),
+        transforms.RandomGrayscale(p=0.2),
+        transforms.ToTensor()
+    ]))
+
+    test_transform = transforms.Compose([
+        transforms.Resize(size=(255, 255)),
+        transforms.ToTensor()
+    ])
+
     dev_classifier.create_dataloader(
         train_root_path='dev_images/train',
         test_root_path='dev_images/test',
-        seed=57
+        seed=57,
+        train_transform=train_transform,
+        test_transform=test_transform
     )
+    # print(dev_classifier.train_dataset[0][0][0].shape)
+    # print(dev_classifier.train_dataset[0][0][0].permute(1, 2, 0).shape)
+    # print(dev_classifier.train_dataset[0][0][0].permute(1, 2, 0).numpy().shape)
+    # cv2.imshow('img', dev_classifier.train_dataset[0][0][0].permute(1, 2, 0).numpy())
+    # cv2.waitKey(0)
+    # cv2.imshow('img', dev_classifier.train_dataset[0][0][1].permute(1, 2, 0).numpy())
+    # cv2.waitKey(0)
     dev_classifier.train_model()
     dev_classifier.load_model()
     dev_classifier.evaluate_model()
