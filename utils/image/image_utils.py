@@ -22,5 +22,6 @@ def print_image_detail(img):
 
 if __name__ == "__main__":
     img = cv2.imread(
-        r'C:\Users\HP-VICTUS\PycharmProjects\pythonProject\GAT_SCL_for_derm\dev_images\train\ISIC_0077472.jpg')
+        r'C:\Users\HP-VICTUS\PycharmProjects\pythonProject\GAT_SCL_for_derm\dev_images\train\AK\ISIC_0025368.jpg')
     print_image_detail(img)
+    show_image(img)
