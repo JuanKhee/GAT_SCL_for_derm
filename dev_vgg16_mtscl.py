@@ -31,7 +31,7 @@ dev_classifier = SkinDiseaseClassifier(
     epochs=2,
     batch_size=16,
     learning_rate=0.0001,
-    output_dir='dev_model_result_vgg16_MTSCL3',
+    output_dir='dev_model_result_vgg16_MTSCL',
     criterion=SupConCELoss()
 )
 
