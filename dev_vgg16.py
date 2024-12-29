@@ -37,12 +37,14 @@ train_transform = transforms.Compose([
             transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)
         ], p=0.8),
         transforms.RandomGrayscale(p=0.2),
-        transforms.ToTensor()
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.6678, 0.5298, 0.5245], std=[0.2232, 0.2030, 0.2146])
     ])
 
 test_transform = transforms.Compose([
                 transforms.Resize((255, 255)),
-                transforms.ToTensor()
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.6678, 0.5298, 0.5245], std=[0.2232, 0.2030, 0.2146])
             ])
 
 dev_classifier.create_dataloader(

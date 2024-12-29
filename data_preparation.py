@@ -4,6 +4,7 @@ import pandas as pd
 from utils.image import image_utils
 from utils.data.preprocessor import preprocess_images
 import shutil
+from tqdm import tqdm
 
 def list_images(dev_image_path, metadata, id_col):
     dev_image = []
@@ -16,11 +17,10 @@ def list_images(dev_image_path, metadata, id_col):
 
 def split_folder_by_label(image_dir, metadata, id_col, label_col):
     output_image_dir = []
-    for image_path in os.listdir(image_dir):
+    for image_path in tqdm(os.listdir(image_dir)):
         label_df = metadata[metadata[id_col] == image_path.split('.')[0]][label_col]
         if(len(label_df) > 0):
             label = label_df.item()
-            print(label)
             if not os.path.exists(os.path.join(image_dir, label)):
                 os.makedirs(os.path.join(image_dir, label), exist_ok=True)
                 output_image_dir.append(os.path.join(image_dir, label))
@@ -59,14 +59,21 @@ def prepare_dataset_dir(img_path, metadata_path, id_col):
 
     images = list_images(img_path, metadata_processed, id_col)
     data_dir = split_folder_by_label(img_path, metadata_processed, id_col, 'label')
-    print(data_dir)
 
     return images, data_dir
 
 if __name__ == "__main__":
-    train_img_path = 'dev_images/train'
+    # dev run
+    # train_img_path = 'dev_images/train'
+    # train_metadata_path = 'metadata/ISIC_2019_Training_GroundTruth.csv'
+    # test_img_path = 'dev_images/test'
+    # test_metadata_path = 'metadata/ISIC_2019_Test_GroundTruth.csv'
+    # id_col = 'image'
+
+    # actual data run
+    train_img_path = r"C:\Users\HP-VICTUS\Documents\Masters\WQF7023 AI Project\dataset\ISIC_2019_Training_Input\ISIC_2019_Training_Input"
     train_metadata_path = 'metadata/ISIC_2019_Training_GroundTruth.csv'
-    test_img_path = 'dev_images/test'
+    test_img_path = r"C:\Users\HP-VICTUS\Documents\Masters\WQF7023 AI Project\dataset\ISIC_2019_Test_Input\ISIC_2019_Test_Input"
     test_metadata_path = 'metadata/ISIC_2019_Test_GroundTruth.csv'
     id_col = 'image'
 
