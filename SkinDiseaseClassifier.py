@@ -12,7 +12,7 @@ import copy
 import pandas as pd 
 import sys
 from sklearn.metrics import classification_report
-
+from tqdm import tqdm
 
 class SkinDiseaseClassifier():
     def __init__(
@@ -88,13 +88,14 @@ class SkinDiseaseClassifier():
         loss_progress = {}
         acc_progress = {}
         print(f'Total number of batches: {len(self.train_loader)}')
+        best_loss = None
         # Iterate x epochs over the train data
         self.model.train()
         for epoch in range(self.epochs):
             epoch_loss = []
             epoch_acc = []
-            for i, batch in enumerate(self.train_loader, 0):
-                print(f'epoch {epoch}, batch {i}')
+            for batch in tqdm(self.train_loader):
+                # print(f'epoch {epoch}, batch {i}')
                 inputs, labels = batch
                 inputs = inputs.to(self.device)
                 labels = labels.to(self.device)
@@ -105,13 +106,27 @@ class SkinDiseaseClassifier():
                 loss.backward()
                 self.optimizer.step()
                 acc = np.average(outputs.max(1).indices.detach().cpu().numpy() == labels.detach().cpu().numpy())
-                print(f'  loss: {loss.item()}')
-                print(f'  acc : {acc}')
+                # print(f'  loss: {loss.item()}')
+                # print(f'  acc : {acc}')
                 epoch_loss.append(loss.item())
                 epoch_acc.append(acc)
 
             loss_progress[epoch] = np.average(epoch_loss)
             acc_progress[epoch] = np.average(epoch_acc)
+            print(f'epoch loss: {np.average(epoch_loss)}')
+            print(f'epoch acc : {np.average(epoch_acc)}')
+            torch.save(self.model.state_dict(), os.path.join(self.output_dir, f'model_epoch{epoch}.pkl'))
+            if best_loss is None:
+                best_loss = np.average(epoch_loss)
+                print(f'current epoch has smallest loss value: epoch {epoch}')
+                print('replacing best model file')
+                torch.save(self.model.state_dict(), os.path.join(self.output_dir, f'best_model.pkl'))
+            else:
+                if np.average(epoch_loss) < best_loss:
+                    best_loss = np.average(epoch_loss)
+                    print(f'current epoch has smallest loss value: epoch {epoch}')
+                    print('replacing best model file')
+                    torch.save(self.model.state_dict(), os.path.join(self.output_dir, f'best_model.pkl'))
 
         torch.save(self.model.state_dict(), os.path.join(self.output_dir, 'model.pkl'))
         training_loss = pd.DataFrame(

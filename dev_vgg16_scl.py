@@ -35,7 +35,6 @@ dev_classifier = SkinDiseaseClassifier(
 )
 
 train_transform = TwoCropTransform(transforms.Compose([
-    transforms.Resize(size=(255, 255)),
     transforms.RandomResizedCrop(size=(255, 255), scale=(0.7,1.0)),
     transforms.RandomHorizontalFlip(),
     transforms.RandomApply([
