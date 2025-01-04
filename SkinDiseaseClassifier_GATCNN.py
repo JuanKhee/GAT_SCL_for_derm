@@ -12,9 +12,7 @@ import copy
 import pandas as pd 
 import sys
 from sklearn.metrics import classification_report
-from utils.graph_utils import batch_graphs
 from tqdm import tqdm
-
 
 class SkinDiseaseClassifier():
     def __init__(
@@ -43,8 +41,8 @@ class SkinDiseaseClassifier():
         self.output_dir = output_dir
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
-        # else:
-        #     raise Exception("Output Directory Exists, please ensure")
+        else:
+            raise Exception("Output Directory Exists, please ensure")
 
     def create_dataloader(
             self,
@@ -52,8 +50,7 @@ class SkinDiseaseClassifier():
             test_root_path,
             seed=0,
             train_transform=None,
-            test_transform=None,
-            collate_fn=None
+            test_transform=None
     ):
         self.train_root_path = train_root_path
         self.test_root_path = test_root_path
@@ -79,44 +76,31 @@ class SkinDiseaseClassifier():
         self.train_loader = torch.utils.data.DataLoader(
             self.train_dataset,
             batch_size=self.batch_size,
-            shuffle=True,
-            collate_fn=collate_fn
+            shuffle=True
         )
         self.test_loader = torch.utils.data.DataLoader(
             self.test_dataset,
             batch_size=self.batch_size,
-            shuffle=True,
-            collate_fn=collate_fn
+            shuffle=True
         )
 
     def train_model(self):
         loss_progress = {}
         acc_progress = {}
         print(f'Total number of batches: {len(self.train_loader)}')
-        cur_loss = None
+        best_loss = None
         # Iterate x epochs over the train data
         self.model.train()
         for epoch in range(self.epochs):
             epoch_loss = []
             epoch_acc = []
-            for batch in self.train_loader:
+            for batch in tqdm(self.train_loader):
                 # print(f'epoch {epoch}, batch {i}')
-                h, adj, src, tgt, Msrc, Mtgt, Mgraph, labels = batch_graphs(batch)
-                h, adj, src, tgt, Msrc, Mtgt, Mgraph = map(
-                    torch.from_numpy,
-                    (h, adj, src, tgt, Msrc, Mtgt, Mgraph)
-                )
-                h = h.to(self.device)
-                adj = adj.to(self.device)
-                src = src.to(self.device)
-                tgt = tgt.to(self.device)
-                Msrc = Msrc.to(self.device)
-                Mtgt = Mtgt.to(self.device)
-                Mgraph = Mgraph.to(self.device)
+                inputs, labels = batch
+                inputs = inputs.to(self.device)
                 labels = labels.to(self.device)
-
                 self.optimizer.zero_grad()
-                outputs = self.model(h, adj, src, tgt, Msrc, Mtgt, Mgraph)
+                outputs = self.model(inputs)
                 # Labels are automatically one-hot-encoded
                 loss = self.criterion(outputs, labels)
                 loss.backward()
@@ -132,12 +116,14 @@ class SkinDiseaseClassifier():
             print(f'epoch loss: {np.average(epoch_loss)}')
             print(f'epoch acc : {np.average(epoch_acc)}')
             torch.save(self.model.state_dict(), os.path.join(self.output_dir, f'model_epoch{epoch}.pkl'))
-            if cur_loss is None:
+            if best_loss is None:
+                best_loss = np.average(epoch_loss)
                 print(f'current epoch has smallest loss value: epoch {epoch}')
                 print('replacing best model file')
                 torch.save(self.model.state_dict(), os.path.join(self.output_dir, f'best_model.pkl'))
             else:
-                if np.average(epoch_loss) < cur_loss:
+                if np.average(epoch_loss) < best_loss:
+                    best_loss = np.average(epoch_loss)
                     print(f'current epoch has smallest loss value: epoch {epoch}')
                     print('replacing best model file')
                     torch.save(self.model.state_dict(), os.path.join(self.output_dir, f'best_model.pkl'))
@@ -160,27 +146,15 @@ class SkinDiseaseClassifier():
 
         self.model.eval()
         for i, batch in enumerate(self.test_loader, 0):
-            h, adj, src, tgt, Msrc, Mtgt, Mgraph, labels = batch_graphs(batch)
-            h, adj, src, tgt, Msrc, Mtgt, Mgraph = map(
-                torch.from_numpy,
-                (h, adj, src, tgt, Msrc, Mtgt, Mgraph)
-            )
-            h = h.to(self.device)
-            adj = adj.to(self.device)
-            src = src.to(self.device)
-            tgt = tgt.to(self.device)
-            Msrc = Msrc.to(self.device)
-            Mtgt = Mtgt.to(self.device)
-            Mgraph = Mgraph.to(self.device)
-            labels = labels.to(self.device)
-
-            outputs = self.model(h, adj, src, tgt, Msrc, Mtgt, Mgraph)
+            inputs, labels = batch
+            inputs = inputs.to(self.device)
+            labels = labels.numpy()
+            outputs = self.model(inputs)
             print(outputs)
             print(outputs.size())
             outputs = outputs.max(1).indices.detach().cpu().numpy()
             print(outputs)
-            print(labels)
-            print(f"Batch {i} accuracy: ", (labels.detach().cpu().numpy() == outputs).sum() / len(labels))
+            print(f"Batch {i} accuracy: ", (labels == outputs).sum() / len(labels))
             all_labels = np.concatenate((all_labels, labels), axis=None)
             all_outputs = np.concatenate((all_outputs, outputs), axis=None)
             print(f"Cumulative accuracy after batch: ", (all_labels == all_outputs).sum() / len(all_labels))
@@ -188,32 +162,28 @@ class SkinDiseaseClassifier():
 
 
 if __name__ == "__main__":
-    from models.GAT_superpixel import GAT_image
-    from utils.graph_utils import ImgToGraphTransform, graph_collate
     np.set_printoptions(threshold=sys.maxsize)
 
-    GAT_model = GAT_image(5,8)
-    dev_classifier = SkinDiseaseClassifier(
-        GAT_model,
-        epochs=2,
-        batch_size=16,
-        output_dir='dev_model_result_gat'
-    )
+    class CNNModel(nn.Module):
+        def __init__(self):
+            super(CNNModel, self).__init__()
+            self.vgg16 = models.vgg16(pretrained=True)
+
+            # Replace output layer according to our problem
+            in_feats = self.vgg16.classifier[6].in_features
+            self.vgg16.classifier[6] = nn.Linear(in_feats, 8)
+
+        def forward(self, x):
+            x = self.vgg16(x)
+            return x
+
+    vgg16_model = CNNModel()
+    dev_classifier = SkinDiseaseClassifier(vgg16_model, epochs=2, output_dir='dev_model_result')
     dev_classifier.create_dataloader(
         train_root_path='dev_images/train',
         test_root_path='dev_images/test',
-        train_transform=transforms.Compose([
-            transforms.ToTensor(),
-            ImgToGraphTransform(75)
-        ]),
-        test_transform=transforms.Compose([
-            transforms.ToTensor(),
-            ImgToGraphTransform(75)
-        ]),
-        collate_fn=graph_collate,
         seed=57
     )
-
     dev_classifier.train_model()
     dev_classifier.load_model()
     dev_classifier.evaluate_model()

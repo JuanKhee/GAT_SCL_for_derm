@@ -15,14 +15,13 @@ from sklearn.metrics import classification_report
 from utils.graph_utils import batch_graphs
 from tqdm import tqdm
 
-
 class SkinDiseaseClassifier():
     def __init__(
             self,
             model,
             epochs=10,
             batch_size=32,
-            learning_rate=0.0001,
+            learning_rate=0.00001,
             criterion=nn.CrossEntropyLoss(),
             optimizer=optim.Adam,
             output_dir='model_result'
@@ -93,15 +92,14 @@ class SkinDiseaseClassifier():
         loss_progress = {}
         acc_progress = {}
         print(f'Total number of batches: {len(self.train_loader)}')
-        cur_loss = None
         # Iterate x epochs over the train data
         self.model.train()
         for epoch in range(self.epochs):
             epoch_loss = []
             epoch_acc = []
-            for batch in self.train_loader:
+            for batch in tqdm(self.train_loader):
                 # print(f'epoch {epoch}, batch {i}')
-                h, adj, src, tgt, Msrc, Mtgt, Mgraph, labels = batch_graphs(batch)
+                h, adj, src, tgt, Msrc, Mtgt, Mgraph, labels = batch_graphs(batch, two_crop=True)
                 h, adj, src, tgt, Msrc, Mtgt, Mgraph = map(
                     torch.from_numpy,
                     (h, adj, src, tgt, Msrc, Mtgt, Mgraph)
@@ -114,33 +112,30 @@ class SkinDiseaseClassifier():
                 Mtgt = Mtgt.to(self.device)
                 Mgraph = Mgraph.to(self.device)
                 labels = labels.to(self.device)
+                bsz = labels.shape[0]
+                print('src', src)
+                print('tgt', tgt)
+                # print(h, adj, src, tgt, Msrc, Mtgt, Mgraph)
+                # print()
 
                 self.optimizer.zero_grad()
                 outputs = self.model(h, adj, src, tgt, Msrc, Mtgt, Mgraph)
+                f1, f2 = torch.split(outputs, [bsz, bsz], dim=0)
+                outputs = torch.cat([f1.unsqueeze(1), f2.unsqueeze(1)], dim=1)
+                print('outputs:', outputs)
                 # Labels are automatically one-hot-encoded
                 loss = self.criterion(outputs, labels)
                 loss.backward()
                 self.optimizer.step()
                 acc = np.average(outputs.max(1).indices.detach().cpu().numpy() == labels.detach().cpu().numpy())
-                # print(f'  loss: {loss.item()}')
-                # print(f'  acc : {acc}')
+                print(f'  loss: {loss.item()}')
+                print(f'  acc : {acc}')
                 epoch_loss.append(loss.item())
                 epoch_acc.append(acc)
+                print('end batch')
 
             loss_progress[epoch] = np.average(epoch_loss)
             acc_progress[epoch] = np.average(epoch_acc)
-            print(f'epoch loss: {np.average(epoch_loss)}')
-            print(f'epoch acc : {np.average(epoch_acc)}')
-            torch.save(self.model.state_dict(), os.path.join(self.output_dir, f'model_epoch{epoch}.pkl'))
-            if cur_loss is None:
-                print(f'current epoch has smallest loss value: epoch {epoch}')
-                print('replacing best model file')
-                torch.save(self.model.state_dict(), os.path.join(self.output_dir, f'best_model.pkl'))
-            else:
-                if np.average(epoch_loss) < cur_loss:
-                    print(f'current epoch has smallest loss value: epoch {epoch}')
-                    print('replacing best model file')
-                    torch.save(self.model.state_dict(), os.path.join(self.output_dir, f'best_model.pkl'))
 
         torch.save(self.model.state_dict(), os.path.join(self.output_dir, 'model.pkl'))
         training_loss = pd.DataFrame(
@@ -190,30 +185,40 @@ class SkinDiseaseClassifier():
 if __name__ == "__main__":
     from models.GAT_superpixel import GAT_image
     from utils.graph_utils import ImgToGraphTransform, graph_collate
+    from utils.supcon_utils import TwoCropTransform
+    from losses.loss_functions import SupConLoss
     np.set_printoptions(threshold=sys.maxsize)
 
     GAT_model = GAT_image(5,8)
+
     dev_classifier = SkinDiseaseClassifier(
         GAT_model,
         epochs=2,
-        batch_size=16,
-        output_dir='dev_model_result_gat'
+        batch_size=2,
+        output_dir='dev_model_result_gat_scl',
+        criterion=SupConLoss()
     )
     dev_classifier.create_dataloader(
         train_root_path='dev_images/train',
         test_root_path='dev_images/test',
-        train_transform=transforms.Compose([
+        train_transform=TwoCropTransform(transforms.Compose([
+            transforms.RandomHorizontalFlip(),
+            transforms.RandomApply([
+                transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)
+            ], p=0.8),
+            transforms.RandomGrayscale(p=0.2),
             transforms.ToTensor(),
-            ImgToGraphTransform(75)
-        ]),
-        test_transform=transforms.Compose([
+            ImgToGraphTransform(75, False)
+        ])),
+        test_transform=TwoCropTransform(transforms.Compose([
             transforms.ToTensor(),
-            ImgToGraphTransform(75)
-        ]),
+            ImgToGraphTransform(75, False)
+        ])),
         collate_fn=graph_collate,
         seed=57
     )
-
+    # print(dev_classifier.train_dataset[0])
+    # # plot_graph_from_image(transforms.ToPILImage()(image), 70)
     dev_classifier.train_model()
     dev_classifier.load_model()
     dev_classifier.evaluate_model()

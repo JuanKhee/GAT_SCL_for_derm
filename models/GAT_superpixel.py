@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import numpy as np
 
 class GATLayer(nn.Module):
-    def __init__(self,d_i,d_o,act=F.relu,eps=1e-6):
+    def __init__(self,d_i,d_o,act=F.leaky_relu,eps=1e-6):
         super(GATLayer,self).__init__()
         self.f = nn.Linear(2*d_i,d_o)
         self.w = nn.Linear(2*d_i,1)
@@ -38,7 +38,7 @@ class GATLayerAdj(nn.Module):
     More didatic (also memory-hungry) GAT layer
     """
 
-    def __init__(self, d_i, d_o, act=F.relu, eps=1e-6):
+    def __init__(self, d_i, d_o, act=F.leaky_relu, eps=1e-6):
         super(GATLayerAdj, self).__init__()
         self.f = nn.Linear(2 * d_i, d_o)
         self.w = nn.Linear(2 * d_i, 1)
@@ -82,7 +82,7 @@ class GATLayerEdgeAverage(nn.Module):
     GAT layer with average, instead of softmax, attention distribution
     """
 
-    def __init__(self, d_i, d_o, act=F.relu, eps=1e-6):
+    def __init__(self, d_i, d_o, act=F.leaky_relu, eps=1e-6):
         super(GATLayerEdgeAverage, self).__init__()
         self.f = nn.Linear(2 * d_i, d_o)
         self.w = nn.Linear(2 * d_i, 1)
@@ -120,17 +120,18 @@ class GATLayerEdgeSoftmax(nn.Module):
     GAT layer with softmax attention distribution (May be prone to numerical errors)
     """
 
-    def __init__(self, d_i, d_o, act=F.relu, eps=1e-6):
+    def __init__(self, d_i, d_o, act=F.leaky_relu, eps=1e-6):
         super(GATLayerEdgeSoftmax, self).__init__()
-        self.f = nn.Linear(2 * d_i, d_o)
-        self.w = nn.Linear(2 * d_i, 1)
+        self.w_in = nn.Linear(2 * d_i, d_o) # weight parameters for input neighbours
+        # self.w_att = nn.Linear(2 * d_i, 1) # weight parameter for post activation and linear transformed neighbours
+        self.w_att = nn.Linear(d_o, d_o)
         self.act = act
         self._init_weights()
         self.eps = eps
 
     def _init_weights(self):
-        nn.init.xavier_uniform_(self.f.weight)
-        nn.init.xavier_uniform_(self.w.weight)
+        nn.init.xavier_uniform_(self.w_in.weight)
+        nn.init.xavier_uniform_(self.w_att.weight)
 
     def forward(self, x, adj, src, tgt, Msrc, Mtgt):
         """
@@ -141,26 +142,47 @@ class GATLayerEdgeSoftmax(nn.Module):
         Msrc -> N,E adjacency matrix from source nodes to edges
         Mtgt -> N,E adjacency matrix from target nodes to edges
         """
+        print('self.w_in', self.w_in)
+        print('self.w_att', self.w_att)
         hsrc = x[src]  # E,i
         htgt = x[tgt]  # E,i
+        print('hsrc', hsrc.shape)
+        print('htgt', htgt.shape)
         h = torch.cat([hsrc, htgt], dim=1)  # E,2i
-        y = self.act(self.f(h))  # E,o
+        print('h', h.shape)
+        y = self.act(self.w_in(h))  # E,o
+        print('y', y.shape)
+        print('y', y)
         # FIXME Manual softmax doesn't as expected numerically
-        a = self.w(h)  # E,1
+        # a = self.w_att(h)  # E,1
+        a = self.w_att(y)  # E,1
+        print('a', a.shape)
+        print('a', a)
         if torch.isnan(a).any(): print('null attention', a, 'input', h)
         assert not torch.isnan(a).any()
-        a_base, _ = torch.max(a, 0, keepdim=True)  # [0] + self.eps
-        assert not torch.isnan(a_base).any()
-        a_norm = a - a_base
-        assert not torch.isnan(a_norm).any()
-        a_exp = torch.exp(a_norm)
+        # a_base, _ = torch.max(a, 0, keepdim=True)  # [0] + self.eps
+        # print('a_base',a_base)
+        # assert not torch.isnan(a_base).any()
+        # a_norm = a - a_base
+        # print('a_norm', a_norm)
+        # assert not torch.isnan(a_norm).any()
+        # a_exp = torch.exp(a_norm)
+        a_exp = torch.exp(a)
         assert not torch.isnan(a_exp).any()
         a_sum = torch.mm(Mtgt, a_exp) + self.eps  # N,E x E,1 = N,1
         assert not torch.isnan(a_sum).any()
-        o = torch.mm(Mtgt, y * a_exp) / a_sum  # N,1
-        assert not torch.isnan(o).any()
-
-        return o
+        # attention_coef = torch.mm(Mtgt, y * a_exp) / a_sum  # N,1
+        attention_coef = torch.mm(Mtgt, a_exp) / a_sum  # N,1
+        assert not torch.isnan(attention_coef).any()
+        print('a_exp', a_exp.shape)
+        print('a_exp', a_exp)
+        print('a_sum', a_sum.shape)
+        print('a_sum', a_sum)
+        print('attention_coef', attention_coef.shape)
+        print('attention_coef', attention_coef)
+        print('Mtgt', Mtgt.shape)
+        print('Mtgt', Mtgt)
+        return attention_coef
 
 
 class GATLayerMultiHead(nn.Module):
@@ -188,7 +210,7 @@ class GAT_image(nn.Module):
         self.GAT_layer_sizes = [num_features, 32, 64, 64]
 
         self.MLP_layer_sizes = [self.layer_heads[-1] * self.GAT_layer_sizes[-1], 32, num_classes]
-        self.MLP_acts = [F.relu, lambda x: x]
+        self.MLP_acts = [F.leaky_relu, lambda x: x]
 
         self.GAT_layers = nn.ModuleList(
             [
@@ -216,19 +238,6 @@ class GAT_image(nn.Module):
             x = act(layer(x))
         return x
 
-
-class GATCNNModel(nn.Module):
-    def __init__(self):
-        super(GATCNNModel, self).__init__()
-        self.vgg16 = models.vgg16(pretrained=True)
-
-        # Replace output layer according to our problem
-        in_feats = self.vgg16.classifier[6].in_features
-        self.vgg16.classifier[6] = nn.Linear(in_feats, 8)
-
-    def forward(self, x):
-        x = self.vgg16(x)
-        return x
 
 if __name__ == "__main__":
     g = GATLayer(3, 10)

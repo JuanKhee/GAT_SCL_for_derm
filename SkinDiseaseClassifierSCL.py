@@ -115,6 +115,7 @@ class SkinDiseaseClassifier():
                 outputs = torch.cat([f1.unsqueeze(1), f2.unsqueeze(1)], dim=1)
 
                 # Labels are automatically one-hot-encoded
+                print(labels)
                 loss = self.criterion(outputs, labels)
                 loss.backward()
                 self.optimizer.step()
@@ -200,7 +201,7 @@ if __name__ == "__main__":
         epochs=2,
         batch_size=2,
         learning_rate=0.0001,
-        output_dir='dev_model_result_vgg16_SCL2',
+        output_dir='dev_model_result_vgg16_SCL3',
         criterion=SupConLoss()
     )
 

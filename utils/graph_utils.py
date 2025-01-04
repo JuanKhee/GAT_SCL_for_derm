@@ -124,7 +124,7 @@ def get_graph_from_image(PIL_image, desired_nodes=75):
     for y in range(height):
         for x in range(width):
             node = segments[y, x]
-            rgb = image[y, x, :]
+            rgb = image[y, x, :] / 255
             pos = np.array([float(x) / width, float(y) / height])
             nodes[node]["rgb_list"].append(rgb)
             nodes[node]["pos_list"].append(pos)
@@ -202,16 +202,15 @@ def batch_graphs(batch, two_crop=False):
     # batch ~ [((h,edges),int)]
     gs = batch[0]
     if two_crop:
-        print('gs', len(gs))
         ori_feat = [two_crop_g[0] for two_crop_g in gs]
         dual_feat = [two_crop_g[1] for two_crop_g in gs]
         gs = ori_feat + dual_feat
-        print('gs',len(gs))
     labels = batch[1]
     NUM_FEATURES = gs[0][0].shape[-1]
     G = len(gs)
     N = sum(g[0].shape[0] for g in gs)
     M = sum(g[1].shape[0] for g in gs)
+    print('G,N,M', G,N,M)
     adj = np.zeros([N, N])
     src = np.zeros([M])
     tgt = np.zeros([M])
@@ -370,13 +369,16 @@ def get_supersegmented_image(PIL_image, desired_nodes=75):
 
 class ImgToGraphTransform:
     """Create two crops of the same image"""
-    def __init__(self, desired_nodes=50):
+    def __init__(self, desired_nodes=50, retain_image=False):
         self.desired_nodes = desired_nodes
+        self.retain_image = retain_image
 
     def __call__(self, x):
         pil_image_transform = transforms.ToPILImage()
-        return(get_graph_from_image(pil_image_transform(x), self.desired_nodes))
-
+        if not self.retain_image:
+            return get_graph_from_image(pil_image_transform(x), self.desired_nodes)
+        else:
+            return x, get_graph_from_image(pil_image_transform(x), self.desired_nodes)
 
 def graph_collate(batch):
     graph = [item[0] for item in batch]
