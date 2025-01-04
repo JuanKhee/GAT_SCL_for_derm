@@ -191,6 +191,7 @@ def get_graph_from_image(PIL_image, desired_nodes=75):
         edges[m + e, 0] = t
         edges[m + e, 1] = s
     # end for
+    edges = np.unique(edges, axis=1)
     for i in G.nodes:
         h[i, :] = G.nodes[i]["features"]
     # end for
@@ -210,7 +211,6 @@ def batch_graphs(batch, two_crop=False):
     G = len(gs)
     N = sum(g[0].shape[0] for g in gs)
     M = sum(g[1].shape[0] for g in gs)
-    print('G,N,M', G,N,M)
     adj = np.zeros([N, N])
     src = np.zeros([M])
     tgt = np.zeros([M])

@@ -102,24 +102,12 @@ class SupConLoss(nn.Module):
         # features of shape: [4,1,...]
         # labels:            [0,1,1,2]
         # loss before mean:  [nan, ..., ..., nan]
-        print('anchor_feature', anchor_feature)
-        print('contrast_feature.T', contrast_feature.T)
-        print('mask', mask)
-        print('logits', logits)
-        print('torch.exp(logits)', torch.exp(logits))
-        print('logits_mask', logits_mask)
-        print('exp_logits', exp_logits)
-        print('torch.log(exp_logits.sum(1, keepdim=True)',exp_logits)
         mask_pos_pairs = mask.sum(1)
         mask_pos_pairs = torch.where(mask_pos_pairs < 1e-6, 1, mask_pos_pairs)
         mean_log_prob_pos = (mask * log_prob).sum(1) / mask_pos_pairs
-        print('mask_pos_pairs',mask_pos_pairs)
-        print('mask', mask)
-        print('log_prob', log_prob)
         # loss
         loss = - (self.temperature / self.base_temperature) * mean_log_prob_pos
         loss = loss.view(anchor_count, batch_size).mean()
-        print('loss:', loss)
 
         return loss
 

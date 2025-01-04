@@ -21,7 +21,7 @@ class SkinDiseaseClassifier():
             model,
             epochs=10,
             batch_size=32,
-            learning_rate=0.00001,
+            learning_rate=0.0001,
             criterion=nn.CrossEntropyLoss(),
             optimizer=optim.Adam,
             output_dir='model_result'
@@ -92,13 +92,18 @@ class SkinDiseaseClassifier():
         loss_progress = {}
         acc_progress = {}
         print(f'Total number of batches: {len(self.train_loader)}')
+        cur_loss = None
         # Iterate x epochs over the train data
         self.model.train()
         for epoch in range(self.epochs):
+            print('current epoch: ', epoch)
             epoch_loss = []
             epoch_acc = []
-            for batch in tqdm(self.train_loader):
-                # print(f'epoch {epoch}, batch {i}')
+            epoch_tracker = tqdm(self.train_loader)
+            for batch in epoch_tracker:
+                epoch_tracker.set_description(
+                    f"loss: {np.average(epoch_loss) if len(epoch_loss) > 0 else None}; acc: {np.average(epoch_acc) if len(epoch_acc) > 0 else None}"
+                )
                 h, adj, src, tgt, Msrc, Mtgt, Mgraph, labels = batch_graphs(batch, two_crop=True)
                 h, adj, src, tgt, Msrc, Mtgt, Mgraph = map(
                     torch.from_numpy,
@@ -113,29 +118,34 @@ class SkinDiseaseClassifier():
                 Mgraph = Mgraph.to(self.device)
                 labels = labels.to(self.device)
                 bsz = labels.shape[0]
-                print('src', src)
-                print('tgt', tgt)
-                # print(h, adj, src, tgt, Msrc, Mtgt, Mgraph)
-                # print()
 
                 self.optimizer.zero_grad()
                 outputs = self.model(h, adj, src, tgt, Msrc, Mtgt, Mgraph)
+                outputs = torch.nn.Sigmoid()(outputs)
                 f1, f2 = torch.split(outputs, [bsz, bsz], dim=0)
                 outputs = torch.cat([f1.unsqueeze(1), f2.unsqueeze(1)], dim=1)
-                print('outputs:', outputs)
                 # Labels are automatically one-hot-encoded
                 loss = self.criterion(outputs, labels)
                 loss.backward()
                 self.optimizer.step()
-                acc = np.average(outputs.max(1).indices.detach().cpu().numpy() == labels.detach().cpu().numpy())
-                print(f'  loss: {loss.item()}')
-                print(f'  acc : {acc}')
+                acc = np.average(outputs.max(2).indices.detach().cpu().numpy()[:,0] == labels.detach().cpu().numpy())
                 epoch_loss.append(loss.item())
                 epoch_acc.append(acc)
-                print('end batch')
 
             loss_progress[epoch] = np.average(epoch_loss)
             acc_progress[epoch] = np.average(epoch_acc)
+            print(f'epoch loss: {np.average(epoch_loss)}')
+            print(f'epoch acc : {np.average(epoch_acc)}')
+            torch.save(self.model.state_dict(), os.path.join(self.output_dir, f'model_epoch{epoch}.pkl'))
+            if cur_loss is None:
+                print(f'current epoch has smallest loss value: epoch {epoch}')
+                print('replacing best model file')
+                torch.save(self.model.state_dict(), os.path.join(self.output_dir, f'best_model.pkl'))
+            else:
+                if np.average(epoch_loss) < cur_loss:
+                    print(f'current epoch has smallest loss value: epoch {epoch}')
+                    print('replacing best model file')
+                    torch.save(self.model.state_dict(), os.path.join(self.output_dir, f'best_model.pkl'))
 
         torch.save(self.model.state_dict(), os.path.join(self.output_dir, 'model.pkl'))
         training_loss = pd.DataFrame(
@@ -170,11 +180,9 @@ class SkinDiseaseClassifier():
             labels = labels.to(self.device)
 
             outputs = self.model(h, adj, src, tgt, Msrc, Mtgt, Mgraph)
-            print(outputs)
-            print(outputs.size())
             outputs = outputs.max(1).indices.detach().cpu().numpy()
-            print(outputs)
-            print(labels)
+            print('outputs', outputs)
+            print('labels', labels)
             print(f"Batch {i} accuracy: ", (labels.detach().cpu().numpy() == outputs).sum() / len(labels))
             all_labels = np.concatenate((all_labels, labels), axis=None)
             all_outputs = np.concatenate((all_outputs, outputs), axis=None)
@@ -194,7 +202,7 @@ if __name__ == "__main__":
     dev_classifier = SkinDiseaseClassifier(
         GAT_model,
         epochs=2,
-        batch_size=2,
+        batch_size=8,
         output_dir='dev_model_result_gat_scl',
         criterion=SupConLoss()
     )
@@ -210,15 +218,13 @@ if __name__ == "__main__":
             transforms.ToTensor(),
             ImgToGraphTransform(75, False)
         ])),
-        test_transform=TwoCropTransform(transforms.Compose([
+        test_transform=transforms.Compose([
             transforms.ToTensor(),
             ImgToGraphTransform(75, False)
-        ])),
+        ]),
         collate_fn=graph_collate,
         seed=57
     )
-    # print(dev_classifier.train_dataset[0])
-    # # plot_graph_from_image(transforms.ToPILImage()(image), 70)
-    dev_classifier.train_model()
+    # dev_classifier.train_model()
     dev_classifier.load_model()
     dev_classifier.evaluate_model()

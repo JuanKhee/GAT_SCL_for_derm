@@ -3,117 +3,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 
-class GATLayer(nn.Module):
-    def __init__(self,d_i,d_o,act=F.leaky_relu,eps=1e-6):
-        super(GATLayer,self).__init__()
-        self.f = nn.Linear(2*d_i,d_o)
-        self.w = nn.Linear(2*d_i,1)
-        self.act = act
-        self._init_weights()
-        self.eps = torch.tensor([eps])
-
-
-    def _init_weights(self):
-        nn.init.xavier_uniform_(self.f.weight)
-        nn.init.xavier_uniform_(self.w.weight)
-
-    def forward(self, x, adj):
-        zero = torch.zeros_like(adj).unsqueeze(-1)
-        hsrc = x.unsqueeze(0) + zero  # 1,N,i
-        htgt = x.unsqueeze(1) + zero  # N,1,i
-        h = torch.cat([hsrc, htgt], dim=2)  # N,N,2i
-        a = self.w(h)  # N,N,1
-        a_sqz = a.squeeze(2)  # N,N
-        a_zro = -1e16 * torch.ones_like(a_sqz)  # N,N
-        a_msk = torch.where(adj > 0, a_sqz, a_zro)  # N,N
-        a_att = F.softmax(a_msk, dim=1)  # N,N
-
-        y = self.act(self.f(h))  # N,N,o
-        y_att = a_att.unsqueeze(-1) * y  # N,N,o
-        o = y_att.sum(dim=1).squeeze()
-
-        return o
-class GATLayerAdj(nn.Module):
-    """
-    More didatic (also memory-hungry) GAT layer
-    """
-
-    def __init__(self, d_i, d_o, act=F.leaky_relu, eps=1e-6):
-        super(GATLayerAdj, self).__init__()
-        self.f = nn.Linear(2 * d_i, d_o)
-        self.w = nn.Linear(2 * d_i, 1)
-        self.act = act
-        self._init_weights()
-
-    def _init_weights(self):
-        nn.init.xavier_uniform_(self.f.weight)
-        nn.init.xavier_uniform_(self.w.weight)
-
-    def forward(self, x, adj, src, tgt, Msrc, Mtgt):
-        """
-        features -> N,i node features
-        adj -> N,N adjacency matrix
-        src -> E,i source index for edges
-        tgt -> E,i target index for edges
-        Msrc -> N,E adjacency matrix from source nodes to edges
-        Mtgt -> N,E adjacency matrix from target nodes to edges
-        """
-        N = x.size()[0]
-        hsrc = x.unsqueeze(0).expand(N, -1, -1)  # 1,N,i
-        htgt = x.unsqueeze(1).expand(-1, N, -1)  # N,1,i
-
-        h = torch.cat([hsrc, htgt], dim=2)  # N,N,2i
-
-        a = self.w(h)  # N,N,1
-        a_sqz = a.squeeze(2)  # N,N
-        a_zro = -1e16 * torch.ones_like(a_sqz)  # N,N
-        a_msk = torch.where(adj > 0, a_sqz, a_zro)  # N,N
-        a_att = F.softmax(a_msk, dim=1)  # N,N
-
-        y = self.act(self.f(h))  # N,N,o
-        y_att = a_att.unsqueeze(-1) * y  # N,N,o
-        o = y_att.sum(dim=1).squeeze()
-
-        return o
-
-
-class GATLayerEdgeAverage(nn.Module):
-    """
-    GAT layer with average, instead of softmax, attention distribution
-    """
-
-    def __init__(self, d_i, d_o, act=F.leaky_relu, eps=1e-6):
-        super(GATLayerEdgeAverage, self).__init__()
-        self.f = nn.Linear(2 * d_i, d_o)
-        self.w = nn.Linear(2 * d_i, 1)
-        self.act = act
-        self._init_weights()
-        self.eps = eps
-
-    def _init_weights(self):
-        nn.init.xavier_uniform_(self.f.weight)
-        nn.init.xavier_uniform_(self.w.weight)
-
-    def forward(self, x, adj, src, tgt, Msrc, Mtgt):
-        """
-        features -> N,i node features
-        adj -> N,N adjacency matrix
-        src -> E,i source index for edges
-        tgt -> E,i target index for edges
-        Msrc -> N,E adjacency matrix from source nodes to edges
-        Mtgt -> N,E adjacency matrix from target nodes to edges
-        """
-        hsrc = x[src]  # E,i
-        htgt = x[tgt]  # E,i
-        h = torch.cat([hsrc, htgt], dim=1)  # E,2i
-        y = self.act(self.f(h))  # E,o
-        a = self.w(h)  # E,1
-        a_sum = torch.mm(Mtgt, a) + self.eps  # N,E x E,1 = N,1
-        o = torch.mm(Mtgt, y * a) / a_sum  # N,1
-        assert not torch.isnan(o).any()
-
-        return o
-
 
 class GATLayerEdgeSoftmax(nn.Module):
     """
@@ -122,16 +11,24 @@ class GATLayerEdgeSoftmax(nn.Module):
 
     def __init__(self, d_i, d_o, act=F.leaky_relu, eps=1e-6):
         super(GATLayerEdgeSoftmax, self).__init__()
-        self.w_in = nn.Linear(2 * d_i, d_o) # weight parameters for input neighbours
-        # self.w_att = nn.Linear(2 * d_i, 1) # weight parameter for post activation and linear transformed neighbours
-        self.w_att = nn.Linear(d_o, d_o)
         self.act = act
-        self._init_weights()
         self.eps = eps
 
+        self.W_in = nn.Linear(2 * d_i, d_o) # weight parameters for input neighbours
+        # self.a = nn.Linear(2 * d_i, 1) # GAT
+        self.a = nn.Linear(d_o, 1) # GATV2
+        self.W_out = nn.Linear(d_i, d_o)
+
+        self._init_weights()
+        # print('init W_in', self.W_in.weight)
+        # print('init a', self.a.weight)
+        # print('init W_out', self.W_out.weight)
+
+
     def _init_weights(self):
-        nn.init.xavier_uniform_(self.w_in.weight)
-        nn.init.xavier_uniform_(self.w_att.weight)
+        nn.init.xavier_uniform_(self.W_in.weight)
+        nn.init.xavier_uniform_(self.a.weight)
+        nn.init.xavier_uniform_(self.W_out.weight)
 
     def forward(self, x, adj, src, tgt, Msrc, Mtgt):
         """
@@ -141,48 +38,56 @@ class GATLayerEdgeSoftmax(nn.Module):
         tgt -> E,i target index for edges
         Msrc -> N,E adjacency matrix from source nodes to edges
         Mtgt -> N,E adjacency matrix from target nodes to edges
+        # unused method parameters are to ensure consistency from model input to layer inputs
         """
-        print('self.w_in', self.w_in)
-        print('self.w_att', self.w_att)
-        hsrc = x[src]  # E,i
-        htgt = x[tgt]  # E,i
-        print('hsrc', hsrc.shape)
-        print('htgt', htgt.shape)
-        h = torch.cat([hsrc, htgt], dim=1)  # E,2i
-        print('h', h.shape)
-        y = self.act(self.w_in(h))  # E,o
-        print('y', y.shape)
-        print('y', y)
-        # FIXME Manual softmax doesn't as expected numerically
-        # a = self.w_att(h)  # E,1
-        a = self.w_att(y)  # E,1
-        print('a', a.shape)
-        print('a', a)
-        if torch.isnan(a).any(): print('null attention', a, 'input', h)
-        assert not torch.isnan(a).any()
-        # a_base, _ = torch.max(a, 0, keepdim=True)  # [0] + self.eps
-        # print('a_base',a_base)
-        # assert not torch.isnan(a_base).any()
-        # a_norm = a - a_base
-        # print('a_norm', a_norm)
-        # assert not torch.isnan(a_norm).any()
-        # a_exp = torch.exp(a_norm)
-        a_exp = torch.exp(a)
-        assert not torch.isnan(a_exp).any()
-        a_sum = torch.mm(Mtgt, a_exp) + self.eps  # N,E x E,1 = N,1
-        assert not torch.isnan(a_sum).any()
-        # attention_coef = torch.mm(Mtgt, y * a_exp) / a_sum  # N,1
-        attention_coef = torch.mm(Mtgt, a_exp) / a_sum  # N,1
-        assert not torch.isnan(attention_coef).any()
-        print('a_exp', a_exp.shape)
-        print('a_exp', a_exp)
-        print('a_sum', a_sum.shape)
-        print('a_sum', a_sum)
-        print('attention_coef', attention_coef.shape)
-        print('attention_coef', attention_coef)
-        print('Mtgt', Mtgt.shape)
-        print('Mtgt', Mtgt)
-        return attention_coef
+        hsrc = x[src]  # extract source of each edge
+        htgt = x[tgt]  # extract target of each edge
+        h = torch.cat([hsrc, htgt], dim=1)  # concatenate features of source and target
+        wh = self.W_in(h) # Apply W weight matrix onto features
+        # print('wh', wh)
+        sig_wh = self.act(wh)  # Apply non-linear activation onto weighted features
+        # print('sig_wh', sig_wh)
+        # a = self.a(h)  # GAT
+        e = self.a(sig_wh)  # GATV2 - apply a weight matrix onto activated weighted features to obtain raw attention
+        # print('e', e)
+        assert not torch.isnan(e).any()
+
+        exp_e = torch.exp(e) # get exp of each raw attention
+        assert not torch.isnan(exp_e).any()
+
+        exp_e_sum = torch.mm(Mtgt, exp_e) + self.eps  # get sum of attention for all target nodes of each source
+        exp_e_sum = exp_e_sum[tgt] # reindex sum values for parallel computation
+        if torch.isnan(exp_e_sum).any():
+            print('h', h)
+            print('wh', wh)
+            print('sig_wh', sig_wh)
+            print('e', e)
+            print('exp_e', exp_e)
+            print('exp_e_sum', exp_e_sum)
+        assert not torch.isnan(exp_e_sum).any()
+
+        # alpha = torch.mm(Mtgt, y * a_exp) / a_sum  # GAT
+        alpha = exp_e / exp_e_sum  # GATV2 - softmax raw attention to obtain final attention values
+        # print('alpha', alpha)
+        assert not torch.isnan(alpha).any()
+
+        w2_hout = self.W_out(htgt)
+        # print('w2_hout', w2_hout)
+        assert not torch.isnan(w2_hout).any()
+
+        alpha_w2_hout = alpha * w2_hout
+        # print('alpha_w2_hout', alpha_w2_hout)
+        assert not torch.isnan(alpha_w2_hout).any()
+
+        h_new_raw = torch.mm(Mtgt, alpha_w2_hout)
+        # print('h_new_raw', h_new_raw)
+        assert not torch.isnan(h_new_raw).any()
+
+        h_new_act = self.act(h_new_raw)
+        # print('h_new_act', h_new_act)
+        assert not torch.isnan(h_new_act).any()
+
+        return h_new_act
 
 
 class GATLayerMultiHead(nn.Module):
@@ -203,12 +108,14 @@ class GATLayerMultiHead(nn.Module):
 
 class GAT_image(nn.Module):
 
-    def __init__(self, num_features, num_classes, num_heads=[2, 2, 2]):
+    def __init__(self, num_features, num_classes, num_heads=[2, 2, 2], layer_sizes=[32,64,64]):
         super(GAT_image, self).__init__()
 
         self.layer_heads = [1] + num_heads
-        self.GAT_layer_sizes = [num_features, 32, 64, 64]
+        # Computes attention coefficients and outputs transformed features
+        self.GAT_layer_sizes = [num_features] + list(layer_sizes)
 
+        # Applies Multihead framework for attention computation
         self.MLP_layer_sizes = [self.layer_heads[-1] * self.GAT_layer_sizes[-1], 32, num_classes]
         self.MLP_acts = [F.leaky_relu, lambda x: x]
 
@@ -240,8 +147,11 @@ class GAT_image(nn.Module):
 
 
 if __name__ == "__main__":
-    g = GATLayer(3, 10)
+    # g = GATLayer(3, 10)
     x = torch.tensor([[0, 0, 0], [1, 1, 1]])
     adj = torch.tensor([[0., 1], [1, 0]])
-    y = g(x, adj)
-    print(y)
+    # y = g(x, adj)
+    # print(y)
+    # x = torch.tensor(
+    #
+    # )
