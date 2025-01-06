@@ -380,11 +380,23 @@ class ImgToGraphTransform:
         else:
             return x, get_graph_from_image(pil_image_transform(x), self.desired_nodes)
 
+
+class ImageGraphDualTransform:
+    """Create two crops of the same image"""
+    def __init__(self, img_transform, graph_transform):
+        self.img_transform = img_transform
+        self.graph_transform = graph_transform
+
+    def __call__(self, x):
+        return self.img_transform(x), self.graph_transform(x)
+
+
 def graph_collate(batch):
     graph = [item[0] for item in batch]
     label = [item[1] for item in batch]
     label = torch.LongTensor(label)
     return [graph, label]
+
 
 if __name__ == "__main__":
     import torchvision
