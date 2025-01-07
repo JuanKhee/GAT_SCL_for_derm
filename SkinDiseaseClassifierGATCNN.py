@@ -114,6 +114,7 @@ class SkinDiseaseClassifier():
                 epoch_tracker.set_description(
                     f"loss: {np.average(epoch_loss) if len(epoch_loss) > 0 else None}; acc: {np.average(epoch_acc) if len(epoch_acc) > 0 else None}"
                 )
+
                 inputs, labels = batch
                 cnn_inputs = torch.tensor([inp[0].numpy() for inp in inputs])
                 # cnn_inputs = torch.tensor([batch[0][0][0].numpy()])
