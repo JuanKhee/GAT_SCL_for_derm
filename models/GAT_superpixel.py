@@ -44,12 +44,8 @@ class GATLayerEdgeSoftmax(nn.Module):
         htgt = x[tgt]  # extract target of each edge
         h = torch.cat([hsrc, htgt], dim=1)  # concatenate features of source and target
         wh = self.W_in(h) # Apply W weight matrix onto features
-        # print('wh', wh)
         sig_wh = self.act(wh)  # Apply non-linear activation onto weighted features
-        # print('sig_wh', sig_wh)
-        # a = self.a(h)  # GAT
         e = self.a(sig_wh)  # GATV2 - apply a weight matrix onto activated weighted features to obtain raw attention
-        # print('e', e)
         assert not torch.isnan(e).any()
 
         exp_e = torch.exp(e) # get exp of each raw attention
@@ -57,34 +53,22 @@ class GATLayerEdgeSoftmax(nn.Module):
 
         exp_e_sum = torch.mm(Mtgt, exp_e) + self.eps  # get sum of attention for all target nodes of each source
         exp_e_sum = exp_e_sum[tgt] # reindex sum values for parallel computation
-        if torch.isnan(exp_e_sum).any():
-            print('h', h)
-            print('wh', wh)
-            print('sig_wh', sig_wh)
-            print('e', e)
-            print('exp_e', exp_e)
-            print('exp_e_sum', exp_e_sum)
         assert not torch.isnan(exp_e_sum).any()
 
         # alpha = torch.mm(Mtgt, y * a_exp) / a_sum  # GAT
         alpha = exp_e / exp_e_sum  # GATV2 - softmax raw attention to obtain final attention values
-        # print('alpha', alpha)
         assert not torch.isnan(alpha).any()
 
         w2_hout = self.W_out(htgt)
-        # print('w2_hout', w2_hout)
         assert not torch.isnan(w2_hout).any()
 
         alpha_w2_hout = alpha * w2_hout
-        # print('alpha_w2_hout', alpha_w2_hout)
         assert not torch.isnan(alpha_w2_hout).any()
 
         h_new_raw = torch.mm(Mtgt, alpha_w2_hout)
-        # print('h_new_raw', h_new_raw)
         assert not torch.isnan(h_new_raw).any()
 
         h_new_act = self.act(h_new_raw)
-        # print('h_new_act', h_new_act)
         assert not torch.isnan(h_new_act).any()
 
         return h_new_act
@@ -147,11 +131,14 @@ class GAT_image(nn.Module):
 
 
 if __name__ == "__main__":
-    # g = GATLayer(3, 10)
-    x = torch.tensor([[0, 0, 0], [1, 1, 1]])
-    adj = torch.tensor([[0., 1], [1, 0]])
-    # y = g(x, adj)
-    # print(y)
-    # x = torch.tensor(
-    #
-    # )
+    g = GATLayerEdgeSoftmax(3, 10)
+    x0 = torch.tensor([[0., 0., 0.], [1., 1., 1.]])
+    adj = torch.tensor([[0, 1], [1, 0]])
+    src = [0, 1]
+    tgt = [1, 0]
+    Msrc = torch.tensor([[1.,0.], [0.,1.]])
+    Mtgt = torch.tensor([[0.,1.], [1.,0.]])
+    Mgraph = [[1], [1]]
+
+    x1 = g(x0, adj, src, tgt, Msrc, Mtgt)
+    print(x1)

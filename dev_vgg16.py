@@ -4,7 +4,7 @@ import torch.nn as nn
 import torchvision
 import torchvision.models as models
 import torchvision.transforms as transforms
-from SkinDiseaseClassifier import SkinDiseaseClassifier
+from SkinDiseaseClassifierCNN import SkinDiseaseClassifier
 
 np.set_printoptions(threshold=sys.maxsize)
 

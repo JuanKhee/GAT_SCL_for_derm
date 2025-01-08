@@ -117,7 +117,9 @@ class SkinDiseaseClassifier():
 
                 inputs, labels = batch
                 cnn_inputs = torch.tensor([inp[0].numpy() for inp in inputs])
+                # cnn_inputs = torch.tensor([batch[0][0][0].numpy()])
                 gat_inputs = [inp[1] for inp in inputs]
+                # gat_inputs = batch[0][0][1]
                 gat_batch = (gat_inputs, labels)
 
                 h, adj, src, tgt, Msrc, Mtgt, Mgraph, gat_labels = batch_graphs(gat_batch)

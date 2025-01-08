@@ -43,8 +43,8 @@ class SkinDiseaseClassifier():
         self.output_dir = output_dir
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
-        else:
-            raise Exception("Output Directory Exists, please ensure")
+        # else:
+        #     raise Exception("Output Directory Exists, please ensure")
 
     def create_dataloader(
             self,
@@ -96,30 +96,26 @@ class SkinDiseaseClassifier():
         for epoch in range(self.epochs):
             epoch_loss = []
             epoch_acc = []
-            for batch in tqdm(self.train_loader):
+            epoch_tracker = tqdm(self.train_loader)
+            for batch in epoch_tracker:
+                epoch_tracker.set_description(
+                    f"loss: {np.average(epoch_loss) if len(epoch_loss) > 0 else None}; acc: {np.average(epoch_acc) if len(epoch_acc) > 0 else None}"
+                )
                 inputs, labels = batch
                 inputs = torch.cat([inputs[0], inputs[1]], dim=0)
-                # print(inputs.shape)
-                # cv2.imshow('0', inputs[0].permute(1,2,0).numpy())
-                # cv2.waitKey(0)
-                # cv2.imshow('1', inputs[1].permute(1,2,0).numpy())
-                # cv2.waitKey(1)
-                # cv2.imshow('2', inputs[2].permute(1,2,0).numpy())
-                # cv2.waitKey(1)
                 inputs = inputs.to(self.device)
                 labels = labels.to(self.device)
                 bsz = labels.shape[0]
                 self.optimizer.zero_grad()
                 outputs = self.model(inputs)
                 f1, f2 = torch.split(outputs, [bsz, bsz], dim=0)
-                outputs = torch.cat([f1.unsqueeze(1), f2.unsqueeze(1)], dim=1)
+                cat_outputs = torch.cat([f1.unsqueeze(1), f2.unsqueeze(1)], dim=1)
 
                 # Labels are automatically one-hot-encoded
-                print(labels)
-                loss = self.criterion(outputs, labels)
+                loss = self.criterion(cat_outputs, labels)
                 loss.backward()
                 self.optimizer.step()
-                acc = np.average(outputs.max(2).indices.detach().cpu().numpy()[:,0] == labels.detach().cpu().numpy())
+                acc = np.average(outputs.max(1).indices.detach().cpu().numpy() == torch.cat([labels, labels], dim=0).detach().cpu().numpy())
                 # print(f'  loss: {loss.item()}')
                 # print(f'  acc : {acc}')
                 epoch_loss.append(loss.item())
@@ -199,7 +195,7 @@ if __name__ == "__main__":
     dev_classifier = SkinDiseaseClassifier(
         vgg16_model,
         epochs=2,
-        batch_size=2,
+        batch_size=8,
         learning_rate=0.0001,
         output_dir='dev_model_result_vgg16_SCL3',
         criterion=SupConLoss()

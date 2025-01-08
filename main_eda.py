@@ -1,7 +1,7 @@
 import torch
 import torchvision
 import torchvision.transforms as transforms
-from utils.data.preprocessor import compute_mean_std
+from utils.data_utils import compute_mean_std
 
 dataset = torchvision.datasets.ImageFolder(
     r"C:\Users\HP-VICTUS\Documents\Masters\WQF7023 AI Project\dataset\ISIC_2019_Training_Input\ISIC_2019_Training_Input",
