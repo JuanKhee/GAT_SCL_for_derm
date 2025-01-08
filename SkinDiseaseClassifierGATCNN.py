@@ -273,8 +273,8 @@ if __name__ == "__main__":
     dev_classifier.create_dataloader(
         train_root_path='dev_images/train',
         test_root_path='dev_images/test',
-        train_transform=ImageGraphDualTransform(
-            img_transform=transforms.Compose([
+        train_transform=[
+            [
                 transforms.RandomResizedCrop(size=(255, 255), scale=(0.2, 1.)),
                 transforms.RandomHorizontalFlip(),
                 transforms.RandomApply([
@@ -282,29 +282,23 @@ if __name__ == "__main__":
                 ], p=0.8),
                 transforms.RandomGrayscale(p=0.2),
                 transforms.ToTensor(),
-                transforms.Normalize(mean=[0.6678, 0.5298, 0.5245], std=[0.2232, 0.2030, 0.2146])
-            ]),
-            graph_transform=transforms.Compose([
+            ],
+            [
                 transforms.ToTensor(),
-                ImgToGraphTransform(75)
-            ])
-        ),
-        test_transform=ImageGraphDualTransform(
-            img_transform=transforms.Compose([
-                transforms.RandomResizedCrop(size=(255, 255), scale=(0.2, 1.)),
-                transforms.RandomHorizontalFlip(),
-                transforms.RandomApply([
-                    transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)
-                ], p=0.8),
-                transforms.RandomGrayscale(p=0.2),
+                ImgToGraphTransform(4)
+            ]
+        ],
+        test_transform=[
+            [
+                transforms.Resize(size=(255, 255)),
                 transforms.ToTensor(),
-                transforms.Normalize(mean=[0.6678, 0.5298, 0.5245], std=[0.2232, 0.2030, 0.2146])
-            ]),
-            graph_transform=transforms.Compose([
+            ],
+            [
                 transforms.ToTensor(),
-                ImgToGraphTransform(75)
-            ])
-        ),
+                ImgToGraphTransform(4)
+            ]
+        ]
+        ,
         collate_fn=graph_collate,
         seed=57
     )

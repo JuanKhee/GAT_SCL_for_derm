@@ -95,45 +95,45 @@ class SkinDiseaseClassifier():
 
         assert 100 % k == 0
         torch.manual_seed(seed)
-        # k_datasets = torch.utils.data.random_split(self.train_dataset, [1/k]*k)
-        # torch.save(self.model.state_dict(), os.path.join(self.output_dir, f'model_common_init_state.pkl'))
-        # for i, dataset in enumerate(k_datasets):
-        #     print(f'fold {i}/{k}')
-        #     self.model.load_state_dict(torch.load(os.path.join(self.output_dir, 'model_common_init_state.pkl')))
-        #     self.val_dataset = dataset
-        #     self.train_dataset = torch.utils.data.ConcatDataset(
-        #         [k_datasets[t] for t in range(k) if t != i]
-        #     )
-        #     print(f'Training Size: {len(self.train_dataset)}; Validation Size: {len(self.val_dataset)}')
-        #     self.train_loader = torch.utils.data.DataLoader(
-        #         self.train_dataset,
-        #         batch_size=self.batch_size,
-        #         shuffle=True
-        #     )
-        #     mean, std = compute_mean_std(self.train_loader, 255)
-        #     cv_train_transform = transforms.Compose(self.train_transform + [transforms.Normalize(mean=mean, std=std)])
-        #     cv_val_transform = transforms.Compose(self.test_transform + [transforms.Normalize(mean=mean, std=std)])
-        #
-        #     for t in range(k):
-        #         if t != i:
-        #             k_datasets[t].dataset.transform = cv_train_transform
-        #
-        #     self.train_dataset = torch.utils.data.ConcatDataset(
-        #         [k_datasets[t] for t in range(k) if t != i]
-        #     )
-        #     self.val_dataset.dataset.transform = cv_val_transform
-        #     self.train_loader = torch.utils.data.DataLoader(
-        #         self.train_dataset,
-        #         batch_size=self.batch_size,
-        #         shuffle=True
-        #     )
-        #     self.val_loader = torch.utils.data.DataLoader(
-        #         self.val_dataset,
-        #         batch_size=self.batch_size,
-        #         shuffle=False
-        #     )
-        #
-        #     self.train_model(output_suffix=f'_fold{i}')
+        k_datasets = torch.utils.data.random_split(self.train_dataset, [1/k]*k)
+        torch.save(self.model.state_dict(), os.path.join(self.output_dir, f'model_common_init_state.pkl'))
+        for i, dataset in enumerate(k_datasets):
+            print(f'fold {i}/{k}')
+            self.model.load_state_dict(torch.load(os.path.join(self.output_dir, 'model_common_init_state.pkl')))
+            self.val_dataset = dataset
+            self.train_dataset = torch.utils.data.ConcatDataset(
+                [k_datasets[t] for t in range(k) if t != i]
+            )
+            print(f'Training Size: {len(self.train_dataset)}; Validation Size: {len(self.val_dataset)}')
+            self.train_loader = torch.utils.data.DataLoader(
+                self.train_dataset,
+                batch_size=self.batch_size,
+                shuffle=True
+            )
+            mean, std = compute_mean_std(self.train_loader, 255)
+            cv_train_transform = transforms.Compose(self.train_transform + [transforms.Normalize(mean=mean, std=std)])
+            cv_val_transform = transforms.Compose(self.test_transform + [transforms.Normalize(mean=mean, std=std)])
+
+            for t in range(k):
+                if t != i:
+                    k_datasets[t].dataset.transform = cv_train_transform
+
+            self.train_dataset = torch.utils.data.ConcatDataset(
+                [k_datasets[t] for t in range(k) if t != i]
+            )
+            self.val_dataset.dataset.transform = cv_val_transform
+            self.train_loader = torch.utils.data.DataLoader(
+                self.train_dataset,
+                batch_size=self.batch_size,
+                shuffle=True
+            )
+            self.val_loader = torch.utils.data.DataLoader(
+                self.val_dataset,
+                batch_size=self.batch_size,
+                shuffle=False
+            )
+
+            self.train_model(output_suffix=f'_fold{i}')
 
         val_files = [os.path.join(self.output_dir, f'val_training_loss_fold{i}.csv') for i in range(k)]
         val_dfs = [pd.read_csv(f) for f in val_files]
