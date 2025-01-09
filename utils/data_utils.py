@@ -70,4 +70,5 @@ def compute_mean_std(loader, size, dual=False):
         var += ((images - mean.unsqueeze(1)) ** 2).sum([0, 2])
     std = torch.sqrt(var / (len(loader.dataset) * size * size))
 
+    print('mean: ', mean, 'std: ', std)
     return(mean,std)
