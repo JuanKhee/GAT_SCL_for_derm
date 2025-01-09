@@ -44,7 +44,7 @@ dev_classifier.create_dataloader(
     train_transform=train_transform,
     test_transform=test_transform
 )
-dev_classifier.cross_validate(5,57,'test_for_mean',None)
+dev_classifier.cross_validate(5,57,'test_for_mean')
 # train_start_time = datetime.now()
 # dev_classifier.train_model()
 # train_end_time = datetime.now()
