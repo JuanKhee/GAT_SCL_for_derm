@@ -1,11 +1,8 @@
 import pandas as pd
+from torch.utils.data import random_split
 
 # Makes sure we see all columns
 pd.set_option('display.max_columns', None)
-from sklearn.model_selection import train_test_split
-from imblearn.over_sampling import RandomOverSampler
-import torch
-from torch.utils.data import random_split
 
 
 def split(full_dataset, val_percent, random_seed=None):

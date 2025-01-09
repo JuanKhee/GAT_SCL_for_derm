@@ -1,5 +1,4 @@
 from tqdm import tqdm
-import fire
 
 import time
 import pickle

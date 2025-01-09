@@ -38,7 +38,7 @@ class SkinDiseaseClassifier():
 
         self.model.to(self.device)
         self.criterion = criterion
-        self.optimizer = optimizer(model.parameters(), lr=learning_rate)
+        self.optimizer = optimizer(self.model.parameters(), lr=learning_rate)
         self.output_dir = output_dir
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
