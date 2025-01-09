@@ -72,12 +72,12 @@ class SkinDiseaseClassifier():
             ]
         self.train_dataset = torchvision.datasets.ImageFolder(
             root=train_root_path,
-            transform=transforms.Compose(train_transform),
+            transform=transforms.Compose(self.train_transform),
         )
 
         self.test_dataset = torchvision.datasets.ImageFolder(
             root=test_root_path,
-            transform=transforms.Compose(test_transform)
+            transform=transforms.Compose(self.test_transform)
         )
 
         self.train_loader = torch.utils.data.DataLoader(
