@@ -110,7 +110,7 @@ class SkinDiseaseClassifier():
         self.val_loader = None
 
 
-    def cross_validate(self, k=2, seed=0, cv_suffix=''):
+    def cross_validate(self, k=2, seed=0, cv_suffix='', pools=1):
 
         assert 100 % k == 0
         torch.manual_seed(seed)
@@ -131,7 +131,7 @@ class SkinDiseaseClassifier():
                 num_workers=self.num_workers,
                 pin_memory=self.pin_memory
             )
-            mean, std = compute_mean_std(self.train_loader, 255)
+            mean, std = compute_mean_std(self.train_loader, 255, pools=pools)
             cv_train_transform = transforms.Compose(self.train_transform + [transforms.Normalize(mean=mean, std=std)])
             cv_val_transform = transforms.Compose(self.test_transform + [transforms.Normalize(mean=mean, std=std)])
 
