@@ -60,8 +60,9 @@ def compute_mean_std(loader, size, dual=False, pools=1):
         else:
             images = inputs
         batch_samples = images.size(0)
-        with multiprocessing.Pool(pools) as p:
-            sums = np.array(p.map(compute_sums, images, batch_samples))
+        sums.append(images.view(batch_samples, images.size(1), -1).mean(2).sum(0))
+        # with multiprocessing.Pool(pools) as p:
+        #     sums = np.array(p.map(compute_sums, images, batch_samples))
     mean = np.sum(sums, axis=0)/len(loader.dataset)
 
     sum_vars = []
@@ -73,16 +74,16 @@ def compute_mean_std(loader, size, dual=False, pools=1):
         else:
             images = inputs
         batch_samples = images.size(0)
-
-        with multiprocessing.Pool(pools) as p:
-            sum_vars = np.array(
-                p.map(
-                    compute_sum_vars,
-                    images,
-                    batch_samples,
-                    mean
-                )
-            )
+        sum_vars.append( ((images.view(batch_samples, images.size(1), -1) - mean.unsqueeze(1)) ** 2).sum([0, 2]))
+        # with multiprocessing.Pool(pools) as p:
+        #     sum_vars = np.array(
+        #         p.map(
+        #             compute_sum_vars,
+        #             images,
+        #             batch_samples,
+        #             mean
+        #         )
+        #     )
     std = torch.sqrt(np.sum(sum_vars, axis=0) / (len(loader.dataset) * size * size))
 
     print(mean, std)
