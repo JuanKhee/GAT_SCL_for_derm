@@ -75,17 +75,32 @@ class SkinDiseaseClassifier():
             root=test_root_path,
             transform=transforms.Compose(test_transform)
         )
+
         self.train_loader = torch.utils.data.DataLoader(
             self.train_dataset,
             batch_size=self.batch_size,
             shuffle=True
         )
+        mean, std = compute_mean_std(self.train_loader, 255)
 
+        self.train_dataset.transform = transforms.Compose(
+            self.train_transform + [transforms.Normalize(mean=mean, std=std)]
+        )
+        self.test_dataset.transform = transforms.Compose(
+            self.test_transform + [transforms.Normalize(mean=mean, std=std)]
+        )
+
+        self.train_loader = torch.utils.data.DataLoader(
+            self.train_dataset,
+            batch_size=self.batch_size,
+            shuffle=True
+        )
         self.test_loader = torch.utils.data.DataLoader(
             self.test_dataset,
             batch_size=self.batch_size,
             shuffle=True
         )
+
 
         self.val_dataset = None
         self.val_loader = None
@@ -287,7 +302,7 @@ if __name__ == "__main__":
         train_transform=train_transform,
         seed=57
     )
-    dev_classifier.cross_validate(k=5)
+    # dev_classifier.cross_validate(k=5)
     # dev_classifier.train_model()
     # dev_classifier.load_model()
     # dev_classifier.evaluate_model()
