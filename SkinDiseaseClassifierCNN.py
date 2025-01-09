@@ -26,7 +26,9 @@ class SkinDiseaseClassifier():
             optimizer=optim.Adam,
             output_dir='model_result',
             num_workers=0,
-            pin_memory=False
+            pin_memory=False,
+            train_mean=[0.6678, 0.5298, 0.5245],
+            train_std=[0.2232, 0.2030, 0.2146]
     ):
 
         self.model = model
@@ -46,6 +48,8 @@ class SkinDiseaseClassifier():
             os.makedirs(output_dir)
         self.num_workers = num_workers
         self.pin_memory = pin_memory
+        self.train_mean = train_mean
+        self.train_std = train_std
 
     def create_dataloader(
             self,
@@ -79,20 +83,11 @@ class SkinDiseaseClassifier():
             root=test_root_path,
             transform=transforms.Compose(self.test_transform)
         )
-
-        self.train_loader = torch.utils.data.DataLoader(
-            self.train_dataset,
-            batch_size=self.batch_size,
-            num_workers=self.num_workers,
-            pin_memory=self.pin_memory
-        )
-        mean, std = compute_mean_std(self.train_loader, 255)
-
         self.train_dataset.transform = transforms.Compose(
-            self.train_transform + [transforms.Normalize(mean=mean, std=std)]
+            self.train_transform + [transforms.Normalize(mean=self.train_mean, std=self.train_mean)]
         )
         self.test_dataset.transform = transforms.Compose(
-            self.test_transform + [transforms.Normalize(mean=mean, std=std)]
+            self.test_transform + [transforms.Normalize(mean=self.train_mean, std=self.train_mean)]
         )
 
         self.train_loader = torch.utils.data.DataLoader(
