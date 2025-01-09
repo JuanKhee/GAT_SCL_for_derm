@@ -22,8 +22,8 @@ import torchvision.transforms as transforms
 NP_TORCH_FLOAT_DTYPE = np.float32
 NP_TORCH_LONG_DTYPE = np.int64
 
-NUM_FEATURES = 5
-NUM_CLASSES = 10
+GRAPH_FEATURES = 8
+NUM_CLASSES = 8
 
 
 # General utils
@@ -107,8 +107,6 @@ def plot_graph_from_image(PIL_image, desired_nodes=75, save_in=None):
 def get_graph_from_image(PIL_image, desired_nodes=75):
     # load the image and convert it to a floating point data type
     image = np.asarray(PIL_image)
-    # print(image.shape)
-    # exit()
     segments = -1 + slic(image, n_segments=desired_nodes, slic_zero=True)
 
     num_nodes = np.max(segments)
@@ -138,7 +136,7 @@ def get_graph_from_image(PIL_image, desired_nodes=75):
         nodes[node]["pos_list"] = np.stack(nodes[node]["pos_list"])
         # rgb
         rgb_mean = np.mean(nodes[node]["rgb_list"], axis=0)
-        # rgb_std = np.std(nodes[node]["rgb_list"], axis=0)
+        rgb_std = np.std(nodes[node]["rgb_list"], axis=0)
         # rgb_gram = np.matmul( nodes[node]["rgb_list"].T, nodes[node]["rgb_list"] ) / nodes[node]["rgb_list"].shape[0]
         # Pos
         pos_mean = np.mean(nodes[node]["pos_list"], axis=0)
@@ -151,7 +149,7 @@ def get_graph_from_image(PIL_image, desired_nodes=75):
         features = np.concatenate(
             [
                 np.reshape(rgb_mean, -1),
-                # np.reshape(rgb_std, -1),
+                np.reshape(rgb_std, -1),
                 # np.reshape(rgb_gram, -1),
                 np.reshape(pos_mean, -1),
                 # np.reshape(pos_std, -1),
@@ -182,7 +180,7 @@ def get_graph_from_image(PIL_image, desired_nodes=75):
 
     n = len(G.nodes)
     m = len(G.edges)
-    h = np.zeros([n, NUM_FEATURES]).astype(NP_TORCH_FLOAT_DTYPE)
+    h = np.zeros([n, GRAPH_FEATURES]).astype(NP_TORCH_FLOAT_DTYPE)
     edges = np.zeros([2 * m, 2]).astype(NP_TORCH_LONG_DTYPE)
     for e, (s, t) in enumerate(G.edges):
         edges[e, 0] = s
@@ -207,7 +205,7 @@ def batch_graphs(batch, two_crop=False):
         dual_feat = [two_crop_g[1] for two_crop_g in gs]
         gs = ori_feat + dual_feat
     labels = batch[1]
-    NUM_FEATURES = gs[0][0].shape[-1]
+    GRAPH_FEATURES = gs[0][0].shape[-1]
     G = len(gs)
     N = sum(g[0].shape[0] for g in gs)
     M = sum(g[1].shape[0] for g in gs)

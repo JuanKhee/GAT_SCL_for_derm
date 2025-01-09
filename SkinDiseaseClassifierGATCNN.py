@@ -14,6 +14,7 @@ import sys
 from sklearn.metrics import classification_report
 from utils.graph_utils import batch_graphs
 from tqdm import tqdm
+from utils.data_utils import compute_mean_std
 
 
 class SkinDiseaseClassifier():
@@ -65,24 +66,24 @@ class SkinDiseaseClassifier():
     ):
         self.train_root_path = train_root_path
         self.test_root_path = test_root_path
+        self.train_transform = train_transform
+        self.test_transform = test_transform
+        self.collate_fn = collate_fn
+
         torch.manual_seed(seed)
-        if train_transform is None:
-            train_transform = transforms.Compose([
-                transforms.Resize((255, 255)),
-                transforms.ToTensor()
-            ])
-        if test_transform is None:
-            test_transform = transforms.Compose([
-                transforms.Resize((255, 255)),
-                transforms.ToTensor()
-            ])
         self.train_dataset = torchvision.datasets.ImageFolder(
             root=train_root_path,
-            transform=train_transform
+            transform=ImageGraphDualTransform(
+                img_transform=transforms.Compose(self.train_transform[0]),
+                graph_transform=transforms.Compose(self.train_transform[1])
+            )
         )
         self.test_dataset = torchvision.datasets.ImageFolder(
             root=test_root_path,
-            transform=test_transform
+            transform=ImageGraphDualTransform(
+                img_transform=transforms.Compose(self.test_transform[0]),
+                graph_transform=transforms.Compose(self.test_transform[1])
+            )
         )
         self.train_loader = torch.utils.data.DataLoader(
             self.train_dataset,
@@ -97,18 +98,97 @@ class SkinDiseaseClassifier():
             collate_fn=collate_fn
         )
 
-    def train_model(self):
-        loss_progress = {}
-        acc_progress = {}
+        self.val_dataset = None
+        self.val_loader = None
+
+    def cross_validate(self, k=2, seed=0, cv_suffix=''):
+
+        assert 100 % k == 0
+        torch.manual_seed(seed)
+        k_datasets = torch.utils.data.random_split(self.train_dataset, [1/k]*k)
+        torch.save(self.cnn_model.state_dict(), os.path.join(self.output_dir, f'cnn_model_common_init_state.pkl'))
+        torch.save(self.gat_model.state_dict(), os.path.join(self.output_dir, f'gat_model_common_init_state.pkl'))
+        for i, dataset in enumerate(k_datasets):
+            print(f'fold {i}/{k}')
+            self.cnn_model.load_state_dict(torch.load(os.path.join(self.output_dir, 'cnn_model_common_init_state.pkl')))
+            self.gat_model.load_state_dict(torch.load(os.path.join(self.output_dir, 'gat_model_common_init_state.pkl')))
+            self.val_dataset = dataset
+
+            for t in range(k):
+                if t != i:
+                    k_datasets[t].dataset.transform = transforms.Compose(self.train_transform[0])
+
+            preprocess_dataset = torch.utils.data.ConcatDataset(
+                [k_datasets[t] for t in range(k) if t != i]
+            )
+            print(f'Training Size: {len(self.train_dataset)}; Validation Size: {len(self.val_dataset)}')
+            self.train_loader = torch.utils.data.DataLoader(
+                preprocess_dataset,
+                batch_size=self.batch_size,
+                collate_fn=self.collate_fn,
+                shuffle=True
+            )
+            mean, std = compute_mean_std(self.train_loader, 255, dual=True)
+            cv_train_transform = ImageGraphDualTransform(
+                img_transform=transforms.Compose(
+                    self.train_transform[0] + [transforms.Normalize(mean=mean, std=std)]
+                ),
+                graph_transform=transforms.Compose(
+                    self.train_transform[1]
+                )
+            )
+            cv_val_transform = ImageGraphDualTransform(
+                img_transform=transforms.Compose(
+                    self.test_transform[0] + [transforms.Normalize(mean=mean, std=std)]
+                ),
+                graph_transform=transforms.Compose(
+                    self.test_transform[1]
+                )
+            )
+
+            for t in range(k):
+                if t != i:
+                    k_datasets[t].dataset.transform = cv_train_transform
+
+            self.train_dataset = torch.utils.data.ConcatDataset(
+                [k_datasets[t] for t in range(k) if t != i]
+            )
+            self.val_dataset.dataset.transform = cv_val_transform
+            self.train_loader = torch.utils.data.DataLoader(
+                self.train_dataset,
+                batch_size=self.batch_size,
+                shuffle=True,
+                collate_fn=self.collate_fn
+            )
+            self.val_loader = torch.utils.data.DataLoader(
+                self.val_dataset,
+                batch_size=self.batch_size,
+                shuffle=False,
+                collate_fn=self.collate_fn
+            )
+
+            self.train_model(output_suffix=f'_fold{i}')
+
+        val_files = [os.path.join(self.output_dir, f'val_training_loss_fold{i}.csv') for i in range(k)]
+        val_dfs = [pd.read_csv(f) for f in val_files]
+        val_df = pd.concat(val_dfs)
+        val_avg_df = val_df.groupby('epoch').mean()[['loss','acc']].reset_index()
+        val_avg_df.to_csv(os.path.join(self.output_dir, f'cv_result{cv_suffix}.csv'), index=False)
+
+    def train_model(self, output_suffix=''):
+        train_loss_progress = {}
+        train_acc_progress = {}
+        val_loss_progress = {}
+        val_acc_progress = {}
         print(f'Total number of batches: {len(self.train_loader)}')
         cur_loss = None
         # Iterate x epochs over the train data
-        self.cnn_model.train()
-        self.gat_model.train()
         for epoch in range(self.epochs):
             print('current epoch: ', epoch)
             epoch_loss = []
             epoch_acc = []
+            self.cnn_model.train()
+            self.gat_model.train()
             epoch_tracker = tqdm(self.train_loader)
             for batch in epoch_tracker:
                 epoch_tracker.set_description(
@@ -154,31 +234,71 @@ class SkinDiseaseClassifier():
                 epoch_loss.append(loss.item())
                 epoch_acc.append(acc)
 
-            loss_progress[epoch] = np.average(epoch_loss)
-            acc_progress[epoch] = np.average(epoch_acc)
-            print(f'epoch loss: {np.average(epoch_loss)}')
-            print(f'epoch acc : {np.average(epoch_acc)}')
+            train_loss = np.average(epoch_loss)
+            train_acc = np.average(epoch_acc)
+            train_loss_progress[epoch] = train_loss
+            train_acc_progress[epoch] = train_acc
+            print(f'epoch training loss: {train_loss}')
+            print(f'epoch training acc : {train_acc}')
 
-            torch.save(self.cnn_model.state_dict(), os.path.join(self.output_dir, f'cnn_model_epoch{epoch}.pkl'))
-            torch.save(self.gat_model.state_dict(), os.path.join(self.output_dir, f'gat_model_epoch{epoch}.pkl'))
-            if cur_loss is None:
-                print(f'current epoch has smallest loss value: epoch {epoch}')
-                print('replacing best model file')
-                torch.save(self.cnn_model.state_dict(), os.path.join(self.output_dir, f'cnn_best_model.pkl'))
-                torch.save(self.gat_model.state_dict(), os.path.join(self.output_dir, f'gat_best_model.pkl'))
-            else:
-                if np.average(epoch_loss) < cur_loss:
+            if self.val_loader is not None:
+                self.model.eval()
+                val_labels, val_outputs, val_raw_outputs, val_report = self.evaluate_model(self.val_loader)
+                val_loss = self.criterion(val_raw_outputs, torch.tensor(val_labels).long())
+                val_acc = val_report['accuracy']
+                val_loss_progress[epoch] = val_loss.item()
+                val_acc_progress[epoch] = np.average(val_outputs == val_labels)
+                if best_loss is None:
+                    best_loss = val_loss
                     print(f'current epoch has smallest loss value: epoch {epoch}')
                     print('replacing best model file')
-                    torch.save(self.cnn_model.state_dict(), os.path.join(self.output_dir, f'cnn_best_model.pkl'))
-                    torch.save(self.gat_model.state_dict(), os.path.join(self.output_dir, f'gat_best_model.pkl'))
+                    torch.save(self.model.state_dict(),
+                               os.path.join(self.output_dir, f'best_model{output_suffix}.pkl'))
+                else:
+                    if val_loss < best_loss:
+                        best_loss = val_loss
+                        print(f'current epoch has smallest loss value: epoch {epoch}')
+                        print('replacing best model file')
+                        torch.save(
+                            self.model.state_dict(),
+                            os.path.join(self.output_dir, f'best_model{output_suffix}.pkl')
+                        )
 
+                print(
+                    f"Epoch {epoch}: train_loss {train_loss}; train_acc {train_acc}; val_loss {val_loss}; val_acc {val_acc}")
 
-        # torch.save(self.model.state_dict(), os.path.join(self.output_dir, 'model.pkl'))
+            if self.val_loader is None:
+                torch.save(self.model.state_dict(),
+                           os.path.join(self.output_dir, f'model_epoch{epoch}{output_suffix}.pkl'))
+                if best_loss is None:
+                    best_loss = train_loss
+                    print(f'current epoch has smallest loss value: epoch {epoch}')
+                    print('replacing best model file')
+                    torch.save(self.model.state_dict(),
+                               os.path.join(self.output_dir, f'best_model{output_suffix}.pkl'))
+                else:
+                    if train_loss < best_loss:
+                        best_loss = np.average(epoch_loss)
+                        print(f'current epoch has smallest loss value: epoch {epoch}')
+                        print('replacing best model file')
+                        torch.save(self.model.state_dict(),
+                                   os.path.join(self.output_dir, f'best_model{output_suffix}.pkl'))
+
+                print(f"Epoch {epoch}: train_loss {train_loss}; train_acc {train_acc}")
+
+        torch.save(self.model.state_dict(), os.path.join(self.output_dir, f'model{output_suffix}.pkl'))
         training_loss = pd.DataFrame(
-            {'epoch': loss_progress.keys(), 'loss':loss_progress.values(), 'acc': acc_progress.values()}
+            {'epoch': train_loss_progress.keys(), 'loss': train_loss_progress.values(),
+             'acc': train_acc_progress.values()}
         )
-        training_loss.to_csv(os.path.join(self.output_dir, 'training_loss.csv'))
+        training_loss.to_csv(os.path.join(self.output_dir, f'training_loss{output_suffix}.csv'))
+
+        if val_loss_progress != {}:
+            validation_loss = pd.DataFrame(
+                {'epoch': val_loss_progress.keys(), 'loss': val_loss_progress.values(),
+                 'acc': val_acc_progress.values()}
+            )
+            validation_loss.to_csv(os.path.join(self.output_dir, f'val_training_loss{output_suffix}.csv'))
 
     def load_model(self):
         assert self.cnn_model is not None
@@ -186,23 +306,23 @@ class SkinDiseaseClassifier():
         self.cnn_model.load_state_dict(torch.load(os.path.join(self.output_dir, 'cnn_best_model.pkl')))
         self.gat_model.load_state_dict(torch.load(os.path.join(self.output_dir, 'gat_best_model.pkl')))
 
-    def evaluate_model(self):
+    def evaluate_model(self, input_loader=None):
         assert self.cnn_model is not None
         assert self.gat_model is not None
         print(f'Test size: {len(self.test_dataset)}')
         all_labels = np.array([])
         all_outputs = np.array([])
+        all_raw_outputs = None
 
         self.cnn_model.eval()
         self.gat_model.eval()
-        for i, batch in enumerate(self.test_loader, 0):
+        if input_loader is None:
+            input_loader = self.test_loader
+        for i, batch in enumerate(input_loader, 0):
             inputs, labels = batch
             cnn_inputs = torch.tensor([inp[0].numpy() for inp in inputs])
-            # cnn_inputs = torch.tensor([batch[0][0][0].numpy()])
             gat_inputs = [inp[1] for inp in inputs]
-            # gat_inputs = batch[0][0][1]
             gat_batch = (gat_inputs, labels)
-
             h, adj, src, tgt, Msrc, Mtgt, Mgraph, gat_labels = batch_graphs(gat_batch)
             h, adj, src, tgt, Msrc, Mtgt, Mgraph = map(
                 torch.from_numpy,
@@ -222,23 +342,27 @@ class SkinDiseaseClassifier():
 
             self.optimizer.zero_grad()
             cnn_outputs = self.cnn_model(cnn_inputs)
-            cnn_outputs = torch.nn.Sigmoid()(cnn_outputs)
+            # cnn_outputs = torch.nn.Sigmoid()(cnn_outputs)
             gat_outputs = self.gat_model(h, adj, src, tgt, Msrc, Mtgt, Mgraph)
-            gat_outputs = torch.nn.Sigmoid()(gat_outputs)
+            # gat_outputs = torch.nn.Sigmoid()(gat_outputs)
 
-            outputs = cnn_outputs * gat_outputs
-            outputs = torch.nn.Softmax(dim=1)(outputs)
+            raw_outputs = cnn_outputs + gat_outputs
+            # outputs = torch.nn.Softmax(dim=1)(outputs)
 
-            print(outputs)
-            print(outputs.size())
-            outputs = outputs.max(1).indices.detach().cpu().numpy()
-            print(outputs)
-            print(labels)
+            outputs = raw_outputs.max(1).indices.detach().cpu().numpy()
             print(f"Batch {i} accuracy: ", (labels.detach().cpu().numpy() == outputs).sum() / len(labels))
             all_labels = np.concatenate((all_labels, labels), axis=None)
             all_outputs = np.concatenate((all_outputs, outputs), axis=None)
             print(f"Cumulative accuracy after batch: ", (all_labels == all_outputs).sum() / len(all_labels))
+
+            if all_raw_outputs is None:
+                all_raw_outputs = raw_outputs
+            else:
+                all_raw_outputs = torch.cat([all_raw_outputs, self.model(inputs)], dim=0)
         print(classification_report(all_labels, all_outputs))
+        report = classification_report(all_labels, all_outputs, output_dict=True)
+
+        return all_labels, all_outputs, all_raw_outputs, report
 
 
 if __name__ == "__main__":
@@ -302,6 +426,7 @@ if __name__ == "__main__":
         collate_fn=graph_collate,
         seed=57
     )
-    dev_classifier.train_model()
-    dev_classifier.load_model()
-    dev_classifier.evaluate_model()
+    dev_classifier.cross_validate(k=5)
+    # dev_classifier.train_model()
+    # dev_classifier.load_model()
+    # dev_classifier.evaluate_model()
