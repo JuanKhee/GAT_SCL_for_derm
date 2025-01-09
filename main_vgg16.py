@@ -6,23 +6,11 @@ import torchvision.models as models
 import torchvision.transforms as transforms
 from SkinDiseaseClassifierCNN import SkinDiseaseClassifier
 from datetime import datetime
+from models.CNN import CNNModel
 
 np.set_printoptions(threshold=sys.maxsize)
 
-class CNNModel(nn.Module):
-    def __init__(self):
-        super(CNNModel, self).__init__()
-        self.vgg16 = models.vgg16(pretrained=True)
-
-        # Replace output layer according to our problem
-        in_feats = self.vgg16.classifier[6].in_features
-        self.vgg16.classifier[6] = nn.Linear(in_feats, 8)
-
-    def forward(self, x):
-        x = self.vgg16(x)
-        return x
-
-vgg16_model = CNNModel()
+vgg16_model = CNNModel(8)
 dev_classifier = SkinDiseaseClassifier(
     vgg16_model,
     epochs=20,

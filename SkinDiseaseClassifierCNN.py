@@ -24,7 +24,9 @@ class SkinDiseaseClassifier():
             learning_rate=0.0001,
             criterion=nn.CrossEntropyLoss(),
             optimizer=optim.Adam,
-            output_dir='model_result'
+            output_dir='model_result',
+            num_workers=0,
+            pin_memory=False
     ):
 
         self.model = model
@@ -42,6 +44,8 @@ class SkinDiseaseClassifier():
         self.output_dir = output_dir
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
+        self.num_workers = num_workers
+        self.pin_memory = pin_memory
 
     def create_dataloader(
             self,
@@ -68,7 +72,7 @@ class SkinDiseaseClassifier():
             ]
         self.train_dataset = torchvision.datasets.ImageFolder(
             root=train_root_path,
-            transform=transforms.Compose(train_transform)
+            transform=transforms.Compose(train_transform),
         )
 
         self.test_dataset = torchvision.datasets.ImageFolder(
@@ -79,7 +83,8 @@ class SkinDiseaseClassifier():
         self.train_loader = torch.utils.data.DataLoader(
             self.train_dataset,
             batch_size=self.batch_size,
-            shuffle=True
+            num_workers=self.num_workers,
+            pin_memory=self.pin_memory
         )
         mean, std = compute_mean_std(self.train_loader, 255)
 
@@ -93,12 +98,16 @@ class SkinDiseaseClassifier():
         self.train_loader = torch.utils.data.DataLoader(
             self.train_dataset,
             batch_size=self.batch_size,
-            shuffle=True
+            shuffle=True,
+            num_workers=self.num_workers,
+            pin_memory=self.pin_memory
         )
         self.test_loader = torch.utils.data.DataLoader(
             self.test_dataset,
             batch_size=self.batch_size,
-            shuffle=True
+            shuffle=True,
+            num_workers=self.num_workers,
+            pin_memory=self.pin_memory
         )
 
 
@@ -123,7 +132,9 @@ class SkinDiseaseClassifier():
             self.train_loader = torch.utils.data.DataLoader(
                 self.train_dataset,
                 batch_size=self.batch_size,
-                shuffle=True
+                shuffle=True,
+                num_workers=self.num_workers,
+                pin_memory=self.pin_memory
             )
             mean, std = compute_mean_std(self.train_loader, 255)
             cv_train_transform = transforms.Compose(self.train_transform + [transforms.Normalize(mean=mean, std=std)])
@@ -140,12 +151,16 @@ class SkinDiseaseClassifier():
             self.train_loader = torch.utils.data.DataLoader(
                 self.train_dataset,
                 batch_size=self.batch_size,
-                shuffle=True
+                shuffle=True,
+                num_workers=self.num_workers,
+                pin_memory=self.pin_memory
             )
             self.val_loader = torch.utils.data.DataLoader(
                 self.val_dataset,
                 batch_size=self.batch_size,
-                shuffle=False
+                shuffle=False,
+                num_workers=self.num_workers,
+                pin_memory=self.pin_memory
             )
 
             self.train_model(output_suffix=f'_fold{i}')
@@ -295,7 +310,12 @@ if __name__ == "__main__":
         transforms.ToTensor()
     ]
 
-    dev_classifier = SkinDiseaseClassifier(vgg16_model, epochs=2, output_dir='dev_model_result')
+    dev_classifier = SkinDiseaseClassifier(
+        vgg16_model,
+        epochs=2,
+        batch_size=2,
+        output_dir='dev_model_result'
+    )
     dev_classifier.create_dataloader(
         train_root_path='dev_images/train',
         test_root_path='dev_images/test',
