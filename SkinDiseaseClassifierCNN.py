@@ -211,7 +211,7 @@ class SkinDiseaseClassifier():
                 self.model.eval()
                 val_labels, val_outputs, val_loss, val_report = self.evaluate_model(self.val_loader)
                 val_acc = val_report['accuracy']
-                val_loss_progress[epoch] = val_loss.item()
+                val_loss_progress[epoch] = val_loss
                 val_acc_progress[epoch] = np.average(val_outputs == val_labels)
                 if best_loss is None:
                     best_loss = val_loss
