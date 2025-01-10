@@ -219,14 +219,13 @@ class SkinDiseaseClassifier():
 
                 self.optimizer.zero_grad()
                 cnn_outputs = self.cnn_model(cnn_inputs)
-                cnn_outputs = torch.nn.Sigmoid()(cnn_outputs)
+                # cnn_outputs = torch.nn.Sigmoid()(cnn_outputs)
                 gat_outputs = self.gat_model(h, adj, src, tgt, Msrc, Mtgt, Mgraph)
-                gat_outputs = torch.nn.Sigmoid()(gat_outputs)
+                # gat_outputs = torch.nn.Sigmoid()(gat_outputs)
 
-                outputs = cnn_outputs * gat_outputs
-                outputs = torch.nn.Softmax(dim=1)(outputs)
+                outputs = cnn_outputs + gat_outputs
+                # outputs = torch.nn.Softmax(dim=1)(outputs)
 
-                # Labels are automatically one-hot-encoded
                 loss = self.criterion(outputs, labels)
                 loss.backward()
                 self.optimizer.step()
@@ -300,6 +299,7 @@ class SkinDiseaseClassifier():
             )
             validation_loss.to_csv(os.path.join(self.output_dir, f'val_training_loss{output_suffix}.csv'))
 
+        eval_loss = eval_loss/len(input_loader)
     def load_model(self):
         assert self.cnn_model is not None
         assert self.gat_model is not None
@@ -312,7 +312,7 @@ class SkinDiseaseClassifier():
         print(f'Test size: {len(self.test_dataset)}')
         all_labels = np.array([])
         all_outputs = np.array([])
-        all_raw_outputs = None
+        eval_loss = 0.0
 
         self.cnn_model.eval()
         self.gat_model.eval()
@@ -346,23 +346,20 @@ class SkinDiseaseClassifier():
             gat_outputs = self.gat_model(h, adj, src, tgt, Msrc, Mtgt, Mgraph)
             # gat_outputs = torch.nn.Sigmoid()(gat_outputs)
 
-            raw_outputs = cnn_outputs + gat_outputs
+            outputs = cnn_outputs + gat_outputs
             # outputs = torch.nn.Softmax(dim=1)(outputs)
 
-            outputs = raw_outputs.max(1).indices.detach().cpu().numpy()
-            print(f"Batch {i} accuracy: ", (labels.detach().cpu().numpy() == outputs).sum() / len(labels))
+            loss = self.criterion(outputs, labels)
+            eval_loss += loss.item()
+            outputs = outputs.max(1).indices.detach().cpu().numpy()
             all_labels = np.concatenate((all_labels, labels), axis=None)
             all_outputs = np.concatenate((all_outputs, outputs), axis=None)
-            print(f"Cumulative accuracy after batch: ", (all_labels == all_outputs).sum() / len(all_labels))
 
-            if all_raw_outputs is None:
-                all_raw_outputs = raw_outputs
-            else:
-                all_raw_outputs = torch.cat([all_raw_outputs, self.model(inputs)], dim=0)
+        eval_loss = eval_loss/len(input_loader)
         print(classification_report(all_labels, all_outputs))
         report = classification_report(all_labels, all_outputs, output_dict=True)
 
-        return all_labels, all_outputs, all_raw_outputs, report
+        return all_labels, all_outputs, eval_loss, report
 
 
 if __name__ == "__main__":
