@@ -274,11 +274,12 @@ class SkinDiseaseClassifier():
         for i, batch in enumerate(input_loader, 0):
             inputs, labels = batch
             inputs = inputs.to(self.device)
-            labels = labels.numpy()
+            labels = labels.to(self.device)
             outputs = self.model(inputs)
             loss = self.criterion(outputs, labels)
             eval_loss += loss.item()
             outputs = outputs.max(1).indices.detach().cpu().numpy()
+            labels = labels.detach().cpu().numpy()
             all_labels = np.concatenate((all_labels, labels), axis=None)
             all_outputs = np.concatenate((all_outputs, outputs), axis=None)
 
@@ -319,6 +320,6 @@ if __name__ == "__main__":
         seed=57
     )
     # dev_classifier.cross_validate(k=5)
-    # dev_classifier.train_model()
-    # dev_classifier.load_model()
-    # dev_classifier.evaluate_model()
+    dev_classifier.train_model()
+    dev_classifier.load_model()
+    dev_classifier.evaluate_model()
