@@ -105,10 +105,8 @@ class SkinDiseaseClassifier():
             pin_memory=self.pin_memory
         )
 
-
         self.val_dataset = None
         self.val_loader = None
-
 
     def cross_validate(self, k=2, seed=0, cv_suffix=''):
 
