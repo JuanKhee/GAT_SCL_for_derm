@@ -164,7 +164,7 @@ class SkinDiseaseClassifier():
         val_avg_df = val_df.groupby('epoch').mean()[['loss','acc']].reset_index()
         val_avg_df.to_csv(os.path.join(self.output_dir, f'cv_result{cv_suffix}.csv'), index=False)
 
-    def train_model(self, output_suffix=''):
+    def train_model(self, output_suffix='', save_all=False):
         train_loss_progress = {}
         train_acc_progress = {}
         val_loss_progress = {}
@@ -203,10 +203,13 @@ class SkinDiseaseClassifier():
             print(f'epoch training loss: {train_loss}')
             print(f'epoch training acc : {train_acc}')
 
+            if save_all:
+                torch.save(self.model.state_dict(),
+                           os.path.join(self.output_dir, f'model_epoch{epoch}{output_suffix}.pkl'))
+
             if self.val_loader is not None:
                 self.model.eval()
-                val_labels, val_outputs, val_raw_outputs, val_report = self.evaluate_model(self.val_loader)
-                val_loss = self.criterion(val_raw_outputs, torch.tensor(val_labels).long())
+                val_labels, val_outputs, val_loss, val_report = self.evaluate_model(self.val_loader)
                 val_acc = val_report['accuracy']
                 val_loss_progress[epoch] = val_loss.item()
                 val_acc_progress[epoch] = np.average(val_outputs == val_labels)
@@ -243,7 +246,7 @@ class SkinDiseaseClassifier():
 
                 print(f"Epoch {epoch}: train_loss {train_loss}; train_acc {train_acc}")
 
-        torch.save(self.model.state_dict(), os.path.join(self.output_dir, f'model{output_suffix}.pkl'))
+        torch.save(self.model.state_dict(), os.path.join(self.output_dir, f'final_model{output_suffix}.pkl'))
         training_loss = pd.DataFrame(
             {'epoch': train_loss_progress.keys(), 'loss':train_loss_progress.values(),'acc': train_acc_progress.values()}
         )
@@ -263,7 +266,7 @@ class SkinDiseaseClassifier():
         assert self.model is not None
         all_labels = np.array([])
         all_outputs = np.array([])
-        all_raw_outputs = None
+        eval_loss = 0.0
 
         self.model.eval()
         if input_loader is None:
@@ -272,18 +275,18 @@ class SkinDiseaseClassifier():
             inputs, labels = batch
             inputs = inputs.to(self.device)
             labels = labels.numpy()
-            raw_outputs = self.model(inputs)
-            outputs = raw_outputs.max(1).indices.detach().cpu().numpy()
+            outputs = self.model(inputs)
+            loss = self.criterion(outputs, labels)
+            eval_loss += loss.item()
+            outputs = outputs.max(1).indices.detach().cpu().numpy()
             all_labels = np.concatenate((all_labels, labels), axis=None)
             all_outputs = np.concatenate((all_outputs, outputs), axis=None)
-            if all_raw_outputs is None:
-                all_raw_outputs = raw_outputs
-            else:
-                all_raw_outputs = torch.cat([all_raw_outputs, self.model(inputs)], dim=0)
+
+        eval_loss = eval_loss/len(input_loader)
         print(classification_report(all_labels, all_outputs))
         report = classification_report(all_labels, all_outputs, output_dict=True)
 
-        return all_labels, all_outputs, all_raw_outputs, report
+        return all_labels, all_outputs, eval_loss, report
 
 
 if __name__ == "__main__":
