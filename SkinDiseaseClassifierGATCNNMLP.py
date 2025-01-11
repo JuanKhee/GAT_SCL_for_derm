@@ -15,6 +15,7 @@ from sklearn.metrics import classification_report
 from utils.graph_utils import batch_graphs, ImageDatasetWithFile
 from tqdm import tqdm
 from utils.data_utils import compute_mean_std
+from utils.graph_utils import ImageGraphDualTransform
 
 
 class SkinDiseaseClassifier():
@@ -432,7 +433,7 @@ class SkinDiseaseClassifier():
 if __name__ == "__main__":
     from models.CNN import CNNModel
     from models.GAT_superpixel import GAT_image
-    from utils.graph_utils import ImgToGraphTransform, graph_metadata_collate, ImageGraphDualTransform, GRAPH_FEATURES, METADATA_FEATURES
+    from utils.graph_utils import ImgToGraphTransform, graph_metadata_collate, GRAPH_FEATURES, METADATA_FEATURES
     np.set_printoptions(threshold=sys.maxsize)
 
     CNN_BLOCK_OUTPUT = 8
@@ -487,6 +488,6 @@ if __name__ == "__main__":
         seed=57
     )
     # dev_classifier.cross_validate(k=2)
-    # dev_classifier.train_model()
+    dev_classifier.train_model()
     dev_classifier.load_model()
     dev_classifier.evaluate_model()
