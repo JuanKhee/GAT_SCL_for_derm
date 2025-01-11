@@ -12,7 +12,7 @@ import copy
 import pandas as pd 
 import sys
 from sklearn.metrics import classification_report
-from utils.graph_utils import batch_graphs
+from utils.graph_utils import batch_graphs, ImageDatasetWithFile
 from tqdm import tqdm
 from utils.data_utils import compute_mean_std
 
@@ -68,6 +68,8 @@ class SkinDiseaseClassifier():
             self,
             train_root_path,
             test_root_path,
+            train_metadata_path,
+            test_metadata_path,
             seed=0,
             train_transform=None,
             test_transform=None,
@@ -79,20 +81,32 @@ class SkinDiseaseClassifier():
         self.test_transform = test_transform
         self.collate_fn = collate_fn
 
+        self.train_metadata_path = train_metadata_path
+        self.test_metadata_path = test_metadata_path
+
+        self.train_metadata = pd.read_csv(self.train_metadata_path)
+        self.test_metadata = pd.read_csv(self.test_metadata_path)
+
         torch.manual_seed(seed)
-        self.train_dataset = torchvision.datasets.ImageFolder(
-            root=train_root_path,
-            transform=ImageGraphDualTransform(
-                img_transform=transforms.Compose(self.train_transform[0]),
-                graph_transform=transforms.Compose(self.train_transform[1])
-            )
+        self.train_dataset = ImageDatasetWithFile(
+            torchvision.datasets.ImageFolder(
+                root=train_root_path,
+                transform=ImageGraphDualTransform(
+                    img_transform=transforms.Compose(self.train_transform[0]),
+                    graph_transform=transforms.Compose(self.train_transform[1])
+                )
+            ),
+            self.train_metadata
         )
-        self.test_dataset = torchvision.datasets.ImageFolder(
-            root=test_root_path,
-            transform=ImageGraphDualTransform(
-                img_transform=transforms.Compose(self.test_transform[0]),
-                graph_transform=transforms.Compose(self.test_transform[1])
-            )
+        self.test_dataset = ImageDatasetWithFile(
+            torchvision.datasets.ImageFolder(
+                root=test_root_path,
+                transform=ImageGraphDualTransform(
+                    img_transform=transforms.Compose(self.test_transform[0]),
+                    graph_transform=transforms.Compose(self.test_transform[1])
+                )
+            ),
+            self.test_metadata
         )
         self.train_loader = torch.utils.data.DataLoader(
             self.train_dataset,
@@ -202,7 +216,7 @@ class SkinDiseaseClassifier():
                     f"loss: {np.average(epoch_loss) if len(epoch_loss) > 0 else None}; acc: {np.average(epoch_acc) if len(epoch_acc) > 0 else None}"
                 )
 
-                inputs, labels = batch
+                inputs, metadata_input, labels = batch
                 cnn_inputs = torch.tensor([inp[0].numpy() for inp in inputs])
                 gat_inputs = [inp[1] for inp in inputs]
                 gat_batch = (gat_inputs, labels)
@@ -224,13 +238,18 @@ class SkinDiseaseClassifier():
                 cnn_inputs = cnn_inputs.to(self.device)
                 labels = labels.to(self.device)
 
+                metadata_input = metadata_input.to(self.device)
+
                 self.optimizer.zero_grad()
                 cnn_outputs = self.cnn_model(cnn_inputs)
                 # cnn_outputs = torch.nn.Sigmoid()(cnn_outputs)
                 gat_outputs = self.gat_model(h, adj, src, tgt, Msrc, Mtgt, Mgraph)
                 # gat_outputs = torch.nn.Sigmoid()(gat_outputs)
 
-                outputs = self.mlp_model(cnn_outputs + gat_outputs)
+                deep_block_output = cnn_outputs + gat_outputs
+                mlp_input = torch.cat([deep_block_output, metadata_input], dim=1)
+                outputs = self.mlp_model(mlp_input)
+
                 # outputs = torch.nn.Softmax(dim=1)(outputs)
 
                 # CEloss calls softmax implicitly
@@ -363,7 +382,7 @@ class SkinDiseaseClassifier():
         if input_loader is None:
             input_loader = self.test_loader
         for i, batch in enumerate(input_loader, 0):
-            inputs, labels = batch
+            inputs, metadata_input, labels = batch
             cnn_inputs = torch.tensor([inp[0].numpy() for inp in inputs])
             gat_inputs = [inp[1] for inp in inputs]
             gat_batch = (gat_inputs, labels)
@@ -384,13 +403,17 @@ class SkinDiseaseClassifier():
             cnn_inputs = cnn_inputs.to(self.device)
             labels = labels.to(self.device)
 
+            metadata_input = metadata_input.to(self.device)
+
             self.optimizer.zero_grad()
             cnn_outputs = self.cnn_model(cnn_inputs)
-            # cnn_outputs = torch.nn.Sigmoid()(cnn_outputs)
+            cnn_outputs = torch.nn.Sigmoid()(cnn_outputs)
             gat_outputs = self.gat_model(h, adj, src, tgt, Msrc, Mtgt, Mgraph)
-            # gat_outputs = torch.nn.Sigmoid()(gat_outputs)
+            gat_outputs = torch.nn.Sigmoid()(gat_outputs)
 
-            outputs = self.mlp_model(cnn_outputs + gat_outputs)
+            deep_block_output = cnn_outputs + gat_outputs
+            mlp_input = torch.cat([deep_block_output, metadata_input], dim=1)
+            outputs = self.mlp_model(mlp_input)
             # outputs = torch.nn.Softmax(dim=1)(outputs)
 
             loss = self.criterion(outputs, labels)
@@ -409,24 +432,31 @@ class SkinDiseaseClassifier():
 if __name__ == "__main__":
     from models.CNN import CNNModel
     from models.GAT_superpixel import GAT_image
-    from utils.graph_utils import ImgToGraphTransform, graph_collate, ImageGraphDualTransform
+    from utils.graph_utils import ImgToGraphTransform, graph_metadata_collate, ImageGraphDualTransform, GRAPH_FEATURES, METADATA_FEATURES
     np.set_printoptions(threshold=sys.maxsize)
 
-    CNN_model = CNNModel(32)
-    GAT_model = GAT_image(8,32, num_heads=[1, 1, 1], layer_sizes=[32,64,64])
-    MLP_model = torch.nn.Linear(32,8)
+    CNN_BLOCK_OUTPUT = 8
+    GAT_BLOCK_OUTPUT = 8
+    NUM_CLASSES = 8
 
+    CNN_model = CNNModel(CNN_BLOCK_OUTPUT)
+    GAT_model = GAT_image(GRAPH_FEATURES,GAT_BLOCK_OUTPUT, num_heads=[2, 2, 2], layer_sizes=[32,64,64])
+    MLP_model = torch.nn.Linear(CNN_BLOCK_OUTPUT+METADATA_FEATURES, NUM_CLASSES)
+    nn.init.xavier_uniform_(MLP_model.weight)
+    
     dev_classifier = SkinDiseaseClassifier(
         cnn_model=CNN_model,
         gat_model=GAT_model,
         mlp_model=MLP_model,
-        epochs=1,
+        epochs=2,
         batch_size=2,
-        output_dir='dev_model_result_gatcnnmlp'
+        output_dir='dev_model_result_gatcnnmlp_metadata'
     )
     dev_classifier.create_dataloader(
         train_root_path='dev_images/train',
         test_root_path='dev_images/test',
+        train_metadata_path='metadata/ISIC_2019_Training_Metadata.csv',
+        test_metadata_path='metadata/ISIC_2019_Training_Metadata.csv',
         train_transform=[
             [
                 transforms.RandomResizedCrop(size=(255, 255), scale=(0.2, 1.)),
@@ -453,10 +483,10 @@ if __name__ == "__main__":
             ]
         ]
         ,
-        collate_fn=graph_collate,
+        collate_fn=graph_metadata_collate,
         seed=57
     )
-    dev_classifier.cross_validate(k=2)
-    # dev_classifier.train_model()
-    # dev_classifier.load_model()
-    # dev_classifier.evaluate_model()
+    # dev_classifier.cross_validate(k=2)
+    dev_classifier.train_model()
+    dev_classifier.load_model()
+    dev_classifier.evaluate_model()

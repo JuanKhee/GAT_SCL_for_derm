@@ -16,13 +16,16 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torchvision.datasets import MNIST
 import torchvision.transforms as transforms
-
+from torch.utils.data import Dataset, DataLoader
+import os
 
 NP_TORCH_FLOAT_DTYPE = np.float32
 NP_TORCH_LONG_DTYPE = np.int64
 
 GRAPH_FEATURES = 8
 NUM_CLASSES = 8
+
+METADATA_FEATURES = 11
 
 
 # General utils
@@ -378,8 +381,9 @@ class ImgToGraphTransform:
             return x, get_graph_from_image(pil_image_transform(x), self.desired_nodes)
 
 
+
 class ImageGraphDualTransform:
-    """Create two crops of the same image"""
+    """Combines Image and Graph transform"""
     def __init__(self, img_transform, graph_transform):
         self.img_transform = img_transform
         self.graph_transform = graph_transform
@@ -395,13 +399,71 @@ def graph_collate(batch):
     return [graph, label]
 
 
+def get_metadata_vector(metadata, image_id, age_mean=54.02848075841568, age_std=18.1306072846071):
+    info = metadata[metadata['image'] == image_id].to_dict('records')[0]
+    site_vals = ['anterior torso', 'head/neck', 'lateral torso', 'lower extremity', 'oral/genital', 'palms/soles', 'posterior torso', 'upper extremity']
+    sex_vals = ['female', 'male']
+
+    age = info['age_approx'] if not np.isnan(info['age_approx']) else age_mean
+    age_vector = [(age - age_mean)/age_std]
+    site_vector = [0] * len(site_vals)
+    if info['anatom_site_general'] in site_vals:
+        site_vector[site_vals.index(info['anatom_site_general'])] = 1
+    sex_vector = [0] * len(sex_vals)
+    if info['sex'] in sex_vals:
+        sex_vector[sex_vals.index(info['sex'])] = 1
+
+    output_vector = age_vector + site_vector + sex_vector
+
+    return output_vector
+
+
+class ImageDatasetWithFile(Dataset):
+    """Face Landmarks dataset."""
+
+    def __init__(self, dataset, metadata):
+        """
+        Arguments:
+            dataset - ImageFolder dataset
+            metadata - metadata pandas dataframe
+            transform - torch transforms
+        """
+        self.dataset = dataset
+        self.metadata = metadata
+        self.transform = dataset.transform
+
+    def __len__(self):
+        return len(self.dataset)
+
+    def __getitem__(self, idx):
+        img = self.dataset[idx][0]
+        img_metadata = torch.tensor(
+            get_metadata_vector(
+                metadata=self.metadata,
+                image_id=self.dataset.imgs[idx][0].split(os.sep)[-1].split('.')[0]
+            )
+        )
+        label = self.dataset[idx][1]
+        sample = (img, img_metadata, label)
+        return sample
+
+
+def graph_metadata_collate(batch):
+    graph = [item[0] for item in batch]
+    metadata = torch.stack([item[1] for item in batch], dim=0)
+    label = [item[2] for item in batch]
+    label = torch.LongTensor(label)
+    return [graph, metadata, label]
+
+
 if __name__ == "__main__":
     import torchvision
     import torchvision.transforms as transforms
     import sys
-
-    np.set_printoptions(threshold=sys.maxsize)
-
+    import pandas as pd
+    #
+    # np.set_printoptions(threshold=sys.maxsize)
+    #
     train_dir = r"C:\Users\HP-VICTUS\PycharmProjects\pythonProject\GAT_SCL_for_derm\dev_images\train"
     train_dataset = torchvision.datasets.ImageFolder(
         root=train_dir,
@@ -409,30 +471,32 @@ if __name__ == "__main__":
             transforms.ToTensor()
         ])
     )
-
-    pil_image_transform = transforms.ToPILImage()
-    graphs = []
-    labels = []
-    for example in train_dataset:
-        img = example[0]
-        graph = get_graph_from_image(pil_image_transform(img))
-        plot_graph_from_image(pil_image_transform(img),50,None)
-        plot_graph_from_image(pil_image_transform(img),60,None)
-        plot_graph_from_image(pil_image_transform(img),70,None)
-        plot_graph_from_image(pil_image_transform(img),80,None)
-        plot_graph_from_image(pil_image_transform(img),90,None)
-        plot_graph_from_image(pil_image_transform(img),100,None)
-        graphs.append(graph)
-        labels.append(example[1])
-        break
-    print(train_dataset[0])
-
-    train_dataset = torchvision.datasets.ImageFolder(
-        root=train_dir,
-        transform=transforms.Compose([
-            transforms.ToTensor(),
-            ImgToGraphTransform(75)
-        ])
-    )
-    print(train_dataset[0])
-    # main(True,False,r"C:\Users\HP-VICTUS\PycharmProjects\pythonProject\GAT_SCL_for_derm\dev_images\train\AK")
+    #
+    # pil_image_transform = transforms.ToPILImage()
+    # graphs = []
+    # labels = []
+    # for example in train_dataset:
+    #     img = example[0]
+    #     graph = get_graph_from_image(pil_image_transform(img))
+    #     plot_graph_from_image(pil_image_transform(img),50,None)
+    #     plot_graph_from_image(pil_image_transform(img),60,None)
+    #     plot_graph_from_image(pil_image_transform(img),70,None)
+    #     plot_graph_from_image(pil_image_transform(img),80,None)
+    #     plot_graph_from_image(pil_image_transform(img),90,None)
+    #     plot_graph_from_image(pil_image_transform(img),100,None)
+    #     graphs.append(graph)
+    #     labels.append(example[1])
+    #     break
+    # print(train_dataset[0])
+    #
+    # train_dataset = torchvision.datasets.ImageFolder(
+    #     root=train_dir,
+    #     transform=transforms.Compose([
+    #         transforms.ToTensor(),
+    #         ImgToGraphTransform(75)
+    #     ])
+    # )
+    # print(train_dataset[0])
+    train_metadata = pd.read_csv(r"C:\Users\HP-VICTUS\PycharmProjects\pythonProject\GAT_SCL_for_derm\metadata\ISIC_2019_Training_Metadata.csv")
+    dataset = ImageDatasetWithFile(train_dataset, train_metadata)
+    print(dataset[0])
