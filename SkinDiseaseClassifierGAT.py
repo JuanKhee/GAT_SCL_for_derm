@@ -105,6 +105,7 @@ class SkinDiseaseClassifier():
                 epoch_tracker.set_description(
                     f"loss: {np.average(epoch_loss) if len(epoch_loss) > 0 else None}; acc: {np.average(epoch_acc) if len(epoch_acc) > 0 else None}"
                 )
+                print(batch)
                 h, adj, src, tgt, Msrc, Mtgt, Mgraph, labels = batch_graphs(batch)
                 h, adj, src, tgt, Msrc, Mtgt, Mgraph = map(
                     torch.from_numpy,
@@ -196,11 +197,11 @@ if __name__ == "__main__":
     from utils.graph_utils import ImgToGraphTransform, graph_collate
     np.set_printoptions(threshold=sys.maxsize)
 
-    GAT_model = GAT_image(5,8)
+    GAT_model = GAT_image(8,8)
     dev_classifier = SkinDiseaseClassifier(
         GAT_model,
         epochs=2,
-        batch_size=16,
+        batch_size=1,
         output_dir='dev_model_result_gat'
     )
     dev_classifier.create_dataloader(
@@ -208,16 +209,16 @@ if __name__ == "__main__":
         test_root_path='dev_images/test',
         train_transform=transforms.Compose([
             transforms.ToTensor(),
-            ImgToGraphTransform(75)
+            ImgToGraphTransform(4)
         ]),
         test_transform=transforms.Compose([
             transforms.ToTensor(),
-            ImgToGraphTransform(75)
+            ImgToGraphTransform(4)
         ]),
         collate_fn=graph_collate,
         seed=57
     )
 
-    # dev_classifier.train_model()
-    dev_classifier.load_model()
-    dev_classifier.evaluate_model()
+    dev_classifier.train_model()
+    # dev_classifier.load_model()
+    # dev_classifier.evaluate_model()

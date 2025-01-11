@@ -118,18 +118,8 @@ class SkinDiseaseClassifier():
             print(f'fold {i}/{k}')
             self.model.load_state_dict(torch.load(os.path.join(self.output_dir, 'model_common_init_state.pkl')))
             self.val_dataset = dataset
-            self.train_dataset = torch.utils.data.ConcatDataset(
-                [k_datasets[t] for t in range(k) if t != i]
-            )
             print(f'Training Size: {len(self.train_dataset)}; Validation Size: {len(self.val_dataset)}')
-            self.train_loader = torch.utils.data.DataLoader(
-                self.train_dataset,
-                batch_size=self.batch_size,
-                shuffle=True,
-                num_workers=self.num_workers,
-                pin_memory=self.pin_memory
-            )
-            # mean, std = compute_mean_std(self.train_loader, 255)
+
             cv_train_transform = transforms.Compose(self.train_transform + [transforms.Normalize(mean=self.train_mean, std=self.train_std)])
             cv_val_transform = transforms.Compose(self.test_transform + [transforms.Normalize(mean=self.train_mean, std=self.train_std)])
 
@@ -169,11 +159,12 @@ class SkinDiseaseClassifier():
         train_acc_progress = {}
         val_loss_progress = {}
         val_acc_progress = {}
-
         print(f'Total number of batches: {len(self.train_loader)}')
+
         best_loss = None
         # Iterate x epochs over the train data
         for epoch in range(self.epochs):
+            print('current epoch: ', epoch)
             epoch_loss = []
             epoch_acc = []
             self.model.train()
@@ -212,7 +203,7 @@ class SkinDiseaseClassifier():
                 val_labels, val_outputs, val_loss, val_report = self.evaluate_model(self.val_loader)
                 val_acc = val_report['accuracy']
                 val_loss_progress[epoch] = val_loss
-                val_acc_progress[epoch] = np.average(val_outputs == val_labels)
+                val_acc_progress[epoch] = val_acc
                 if best_loss is None:
                     best_loss = val_loss
                     print(f'current epoch has smallest loss value: epoch {epoch}')
