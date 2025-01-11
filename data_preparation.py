@@ -1,10 +1,17 @@
 import os
 import cv2
+import numpy as np
 import pandas as pd
-from utils.image import image_utils
-from utils.data.preprocessor import preprocess_images
 import shutil
 from tqdm import tqdm
+import torchvision
+import torchvision.transforms as transforms
+import torch
+
+from utils.image import image_utils
+from utils.data_utils import preprocess_images
+from utils.graph_utils import batch_graphs, get_graph_from_image
+
 
 def list_images(dev_image_path, metadata, id_col):
     dev_image = []
@@ -62,6 +69,24 @@ def prepare_dataset_dir(img_path, metadata_path, id_col):
 
     return images, data_dir
 
+
+def prepare_graphs(dataset, nodes=50):
+    for i in tqdm(range(len(dataset))):
+        img = dataset[i][0]
+        pil_image_transform = transforms.ToPILImage()
+        graph = get_graph_from_image(pil_image_transform(img), nodes)
+        input_path = dataset.imgs[i][0]
+        input_dirs = input_path.split(os.sep)
+        output_path = os.sep.join(input_dirs[:-3])
+        output_dir = f"Training_Graphs_{nodes}_nodes"
+        output_dir = os.sep.join([output_path, output_dir, input_dirs[-2]])
+        output_path = os.path.join(output_dir, input_dirs[-1].split('.')[0]+'pkl')
+        os.makedirs(output_dir, exist_ok=True)
+        np.save(output_path, graph, allow_pickle=True)
+
+    return True
+
+
 if __name__ == "__main__":
     # dev run
     # train_img_path = 'dev_images/train'
@@ -77,11 +102,11 @@ if __name__ == "__main__":
     test_metadata_path = 'metadata/ISIC_2019_Test_GroundTruth.csv'
     id_col = 'image'
 
-    train_images, train_data_dir = prepare_dataset_dir(train_img_path, train_metadata_path, id_col)
-    test_images, test_data_dir = prepare_dataset_dir(test_img_path, test_metadata_path, id_col)
-
-    print(train_data_dir)
-    print(test_data_dir)
+    # train_images, train_data_dir = prepare_dataset_dir(train_img_path, train_metadata_path, id_col)
+    # test_images, test_data_dir = prepare_dataset_dir(test_img_path, test_metadata_path, id_col)
+    #
+    # print(train_data_dir)
+    # print(test_data_dir)
     # dev_img = []
     # for img_file in dev_images:
     #     img_path =  os.path.join(dev_train_img_path,img_file+'.jpg')
@@ -89,3 +114,9 @@ if __name__ == "__main__":
     #     dev_img.append(img)
     #     image_utils.print_image_detail(img)
 
+    train_dataset = torchvision.datasets.ImageFolder(
+        root=train_img_path,
+        transform=transforms.ToTensor(),
+    )
+
+    print(prepare_graphs(train_dataset))
