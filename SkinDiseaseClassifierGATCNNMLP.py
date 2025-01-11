@@ -363,9 +363,9 @@ class SkinDiseaseClassifier():
         assert self.cnn_model is not None
         assert self.gat_model is not None
         assert self.mlp_model is not None
-        self.cnn_model.load_state_dict(torch.load(os.path.join(self.output_dir, 'cnn_best_model.pkl')))
-        self.gat_model.load_state_dict(torch.load(os.path.join(self.output_dir, 'gat_best_model.pkl')))
-        self.mlp_model.load_state_dict(torch.load(os.path.join(self.output_dir, 'mlp_best_model.pkl')))
+        self.cnn_model.load_state_dict(torch.load(os.path.join(self.output_dir, 'best_cnn_model.pkl')))
+        self.gat_model.load_state_dict(torch.load(os.path.join(self.output_dir, 'best_gat_model.pkl')))
+        self.mlp_model.load_state_dict(torch.load(os.path.join(self.output_dir, 'best_mlp_model.pkl')))
 
     def evaluate_model(self, input_loader=None):
         assert self.cnn_model is not None
@@ -456,7 +456,7 @@ if __name__ == "__main__":
         train_root_path='dev_images/train',
         test_root_path='dev_images/test',
         train_metadata_path='metadata/ISIC_2019_Training_Metadata.csv',
-        test_metadata_path='metadata/ISIC_2019_Training_Metadata.csv',
+        test_metadata_path='metadata/ISIC_2019_Test_Metadata.csv',
         train_transform=[
             [
                 transforms.RandomResizedCrop(size=(255, 255), scale=(0.2, 1.)),
@@ -487,6 +487,6 @@ if __name__ == "__main__":
         seed=57
     )
     # dev_classifier.cross_validate(k=2)
-    dev_classifier.train_model()
+    # dev_classifier.train_model()
     dev_classifier.load_model()
     dev_classifier.evaluate_model()
