@@ -95,39 +95,23 @@ if __name__ == "__main__":
     # id_col = 'image'
 
     # actual data run
-    train_img_path = r"C:\Users\HP-VICTUS\PycharmProjects\pythonProject\GAT_SCL_for_derm\dev_images\train"
-    train_metadata_path = 'metadata/ISIC_2019_Training_GroundTruth.csv'
-    test_img_path = r"C:\Users\HP-VICTUS\PycharmProjects\pythonProject\GAT_SCL_for_derm\dev_images\test"
-    test_metadata_path = 'metadata/ISIC_2019_Test_GroundTruth.csv'
+    train_img_path = r"C:\Users\HP-VICTUS\Documents\Masters\WQF7023 AI Project\dataset\ISIC_2019_Training_Input\ISIC_2019_Training_Input"
+    train_metadata_path = 'metadata/ISIC_2019_Training_Metadata.csv'
+    test_img_path = r"C:\Users\HP-VICTUS\Documents\Masters\WQF7023 AI Project\dataset\ISIC_2019_Test_Input\ISIC_2019_Test_Input"
+    test_metadata_path = 'metadata/ISIC_2019_Test_Metadata.csv'
     id_col = 'image'
-
-    # train_img_path = r"C:\Users\HP-VICTUS\Documents\Masters\WQF7023 AI Project\dataset\ISIC_2019_Training_Input\ISIC_2019_Training_Input"
-    # train_metadata_path = 'metadata/ISIC_2019_Training_GroundTruth.csv'
-    # test_img_path = r"C:\Users\HP-VICTUS\Documents\Masters\WQF7023 AI Project\dataset\ISIC_2019_Test_Input\ISIC_2019_Test_Input"
-    # test_metadata_path = 'metadata/ISIC_2019_Test_GroundTruth.csv'
-    # id_col = 'image'
-
-    # train_images, train_data_dir = prepare_dataset_dir(train_img_path, train_metadata_path, id_col)
-    # test_images, test_data_dir = prepare_dataset_dir(test_img_path, test_metadata_path, id_col)
-    #
-    # print(train_data_dir)
-    # print(test_data_dir)
-    # dev_img = []
-    # for img_file in dev_images:
-    #     img_path =  os.path.join(dev_train_img_path,img_file+'.jpg')
-    #     img = cv2.imread(img_path)
-    #     dev_img.append(img)
-    #     image_utils.print_image_detail(img)
 
     train_dataset = torchvision.datasets.ImageFolder(
         root=train_img_path,
         transform=transforms.ToTensor(),
     )
 
-    test_dataset = torchvision.datasets.ImageFolder(
-        root=test_img_path,
-        transform=transforms.ToTensor(),
-    )
+    metadata_df = pd.read_csv(train_metadata_path)
+    for i, item in enumerate(train_dataset.imgs):
+        file_path = item[0]
+        file_name = file_path.split(os.sep)[-1].split('.')[0]
 
-    # print(prepare_graphs(train_dataset))
-    print(prepare_graphs(test_dataset))
+        print(i, file_name)
+        print(metadata_df[metadata_df['image'] == file_name].to_dict('records'))
+        if len(metadata_df[metadata_df['image'] == file_name].to_dict('records')) == 0:
+            print(file_name)

@@ -74,7 +74,8 @@ class SkinDiseaseClassifier():
             seed=0,
             train_transform=None,
             test_transform=None,
-            collate_fn=None
+            collate_fn=None,
+            output_file_suffix='.npy'
     ):
         self.train_root_path = train_root_path
         self.test_root_path = test_root_path
@@ -97,7 +98,8 @@ class SkinDiseaseClassifier():
                     graph_transform=transforms.Compose(self.train_transform[1])
                 )
             ),
-            self.train_metadata
+            self.train_metadata,
+            output_file_suffix=output_file_suffix
         )
         self.test_dataset = ImageDatasetWithFile(
             torchvision.datasets.ImageFolder(
@@ -107,7 +109,8 @@ class SkinDiseaseClassifier():
                     graph_transform=transforms.Compose(self.test_transform[1])
                 )
             ),
-            self.test_metadata
+            self.test_metadata,
+            output_file_suffix=output_file_suffix
         )
         self.train_loader = torch.utils.data.DataLoader(
             self.train_dataset,
@@ -218,8 +221,8 @@ class SkinDiseaseClassifier():
                 )
 
                 inputs, metadata_input, labels = batch
-                cnn_inputs = torch.tensor([inp[0].numpy() for inp in inputs])
-                gat_inputs = [inp[1] for inp in inputs]
+                cnn_inputs = torch.tensor([inp[0][0].numpy() for inp in inputs])
+                gat_inputs = [inp[0][1] for inp in inputs]
                 gat_batch = (gat_inputs, labels)
 
                 h, adj, src, tgt, Msrc, Mtgt, Mgraph, gat_labels = batch_graphs(gat_batch)
@@ -384,8 +387,8 @@ class SkinDiseaseClassifier():
             input_loader = self.test_loader
         for i, batch in enumerate(input_loader, 0):
             inputs, metadata_input, labels = batch
-            cnn_inputs = torch.tensor([inp[0].numpy() for inp in inputs])
-            gat_inputs = [inp[1] for inp in inputs]
+            cnn_inputs = torch.tensor([inp[0][0].numpy() for inp in inputs])
+            gat_inputs = [inp[0][1] for inp in inputs]
             gat_batch = (gat_inputs, labels)
             h, adj, src, tgt, Msrc, Mtgt, Mgraph, gat_labels = batch_graphs(gat_batch)
             h, adj, src, tgt, Msrc, Mtgt, Mgraph = map(
@@ -450,14 +453,14 @@ if __name__ == "__main__":
         gat_model=GAT_model,
         mlp_model=MLP_model,
         epochs=2,
-        batch_size=2,
+        batch_size=8,
         output_dir='dev_model_result_gatcnnmlp_metadata'
     )
     dev_classifier.create_dataloader(
-        train_root_path='dev_images/train',
-        test_root_path='dev_images/test',
-        train_metadata_path='metadata/ISIC_2019_Training_Metadata.csv',
-        test_metadata_path='metadata/ISIC_2019_Test_Metadata.csv',
+        train_root_path=r'dev_images\train',
+        test_root_path=r'dev_images\test',
+        train_metadata_path=r'metadata\ISIC_2019_Training_Metadata.csv',
+        test_metadata_path=r'metadata\ISIC_2019_Test_Metadata.csv',
         train_transform=[
             [
                 transforms.RandomResizedCrop(size=(255, 255), scale=(0.2, 1.)),
@@ -485,7 +488,8 @@ if __name__ == "__main__":
         ]
         ,
         collate_fn=graph_metadata_collate,
-        seed=57
+        seed=57,
+        output_file_suffix='pkl.npy'
     )
     # dev_classifier.cross_validate(k=2)
     dev_classifier.train_model()
