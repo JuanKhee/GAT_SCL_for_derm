@@ -93,10 +93,11 @@ class SkinDiseaseClassifier():
         self.train_dataset = ImageDatasetWithFile(
             torchvision.datasets.ImageFolder(
                 root=train_root_path,
-                transform=ImageGraphDualTransform(
-                    img_transform=transforms.Compose(self.train_transform[0]),
-                    graph_transform=transforms.Compose(self.train_transform[1])
-                )
+                # transform=ImageGraphDualTransform(
+                #     img_transform=transforms.Compose(self.train_transform[0]),
+                #     graph_transform=transforms.Compose(self.train_transform[1])
+                # ),
+                transform=transforms.Compose(self.train_transform)
             ),
             self.train_metadata,
             output_file_suffix=output_file_suffix
@@ -104,10 +105,11 @@ class SkinDiseaseClassifier():
         self.test_dataset = ImageDatasetWithFile(
             torchvision.datasets.ImageFolder(
                 root=test_root_path,
-                transform=ImageGraphDualTransform(
-                    img_transform=transforms.Compose(self.test_transform[0]),
-                    graph_transform=transforms.Compose(self.test_transform[1])
-                )
+                # transform=ImageGraphDualTransform(
+                #     img_transform=transforms.Compose(self.test_transform[0]),
+                #     graph_transform=transforms.Compose(self.test_transform[1])
+                # )
+                transform=transforms.Compose(self.train_transform)
             ),
             self.test_metadata,
             output_file_suffix=output_file_suffix
@@ -461,7 +463,7 @@ if __name__ == "__main__":
         train_metadata_path=r'metadata\ISIC_2019_Training_Metadata.csv',
         test_metadata_path=r'metadata\ISIC_2019_Test_Metadata.csv',
         train_transform=[
-            [
+            # [
                 transforms.RandomResizedCrop(size=(255, 255), scale=(0.2, 1.)),
                 transforms.RandomHorizontalFlip(),
                 transforms.RandomApply([
@@ -469,21 +471,19 @@ if __name__ == "__main__":
                 ], p=0.8),
                 transforms.RandomGrayscale(p=0.2),
                 transforms.ToTensor(),
-            ],
-            [
-                transforms.ToTensor(),
-                ImgToGraphTransform(4)
-            ]
+            # ],
+            # [
+            #     transforms.ToTensor()
+            # ]
         ],
         test_transform=[
-            [
+            # [
                 transforms.Resize(size=(255, 255)),
                 transforms.ToTensor(),
-            ],
-            [
-                transforms.ToTensor(),
-                ImgToGraphTransform(4)
-            ]
+            # ],
+            # [
+            #     transforms.ToTensor()
+            # ]
         ]
         ,
         collate_fn=graph_metadata_collate,
@@ -491,6 +491,7 @@ if __name__ == "__main__":
         output_file_suffix='pkl.npy'
     )
     # dev_classifier.cross_validate(k=2)
-    dev_classifier.train_model()
-    dev_classifier.load_model()
-    dev_classifier.evaluate_model()
+    print(dev_classifier.train_dataset[0])
+    # dev_classifier.train_model()
+    # dev_classifier.load_model()
+    # dev_classifier.evaluate_model()
