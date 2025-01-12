@@ -82,6 +82,8 @@ def prepare_graphs(dataset, nodes=50):
         output_dir = os.sep.join([output_path, output_dir, input_dirs[-2]])
         output_path = os.path.join(output_dir, input_dirs[-1].split('.')[0]+'pkl')
         os.makedirs(output_dir, exist_ok=True)
+        print(graph)
+
         np.save(output_path, graph, allow_pickle=True)
     return True
 

@@ -1,6 +1,6 @@
 matplotlib
 networkx
-numpy
+numpy==1.23.0
 opencv_python
 pandas
 protobuf
