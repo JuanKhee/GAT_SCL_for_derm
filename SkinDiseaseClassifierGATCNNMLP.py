@@ -439,13 +439,12 @@ if __name__ == "__main__":
     from utils.graph_utils import ImgToGraphTransform, graph_metadata_collate, GRAPH_FEATURES, METADATA_FEATURES
     np.set_printoptions(threshold=sys.maxsize)
 
-    CNN_BLOCK_OUTPUT = 8
-    GAT_BLOCK_OUTPUT = 8
+    DEEP_BLOCK_OUTPUT = 16
     NUM_CLASSES = 8
 
-    CNN_model = CNNModel(CNN_BLOCK_OUTPUT)
-    GAT_model = GAT_image(GRAPH_FEATURES,GAT_BLOCK_OUTPUT, num_heads=[2, 2, 2], layer_sizes=[32,64,64])
-    MLP_model = torch.nn.Linear(CNN_BLOCK_OUTPUT+METADATA_FEATURES, NUM_CLASSES)
+    CNN_model = CNNModel(DEEP_BLOCK_OUTPUT)
+    GAT_model = GAT_image(GRAPH_FEATURES,DEEP_BLOCK_OUTPUT, num_heads=[2, 2, 2], layer_sizes=[32,64,64])
+    MLP_model = torch.nn.Linear(DEEP_BLOCK_OUTPUT+METADATA_FEATURES, NUM_CLASSES)
     nn.init.xavier_uniform_(MLP_model.weight)
     
     dev_classifier = SkinDiseaseClassifier(
