@@ -379,7 +379,7 @@ class SkinDiseaseClassifier():
         self.mlp_model.eval()
         if input_loader is None:
             input_loader = self.test_loader
-        for i, batch in enumerate(input_loader, 0):
+        for i, batch in tqdm(enumerate(input_loader, 0)):
             inputs, metadata_input, labels = batch
             cnn_inputs = torch.tensor(np.array([inp[0].cpu().numpy() for inp in inputs]))
             gat_inputs = [inp[1] for inp in inputs]
