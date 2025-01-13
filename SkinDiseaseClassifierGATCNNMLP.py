@@ -99,7 +99,7 @@ class SkinDiseaseClassifier():
                 #     img_transform=transforms.Compose(self.train_transform[0]),
                 #     graph_transform=transforms.Compose(self.train_transform[1])
                 # ),
-                transform=transforms.Compose(self.train_transform)
+                transform=transforms.Compose(self.train_transform + [transforms.Normalize(mean=self.train_mean, std=self.train_mean)])
             ),
             self.train_metadata,
             output_dir=train_graph_dir,
@@ -112,7 +112,7 @@ class SkinDiseaseClassifier():
                 #     img_transform=transforms.Compose(self.test_transform[0]),
                 #     graph_transform=transforms.Compose(self.test_transform[1])
                 # )
-                transform=transforms.Compose(self.train_transform)
+                transform=transforms.Compose(self.test_transform + [transforms.Normalize(mean=self.train_mean, std=self.train_mean)])
             ),
             self.test_metadata,
             output_dir=test_graph_dir,
@@ -154,22 +154,10 @@ class SkinDiseaseClassifier():
             self.val_dataset = dataset
             print(f'Training Size: {len(self.train_dataset)}; Validation Size: {len(self.val_dataset)}', flush=True)
 
-            cv_train_transform = ImageGraphDualTransform(
-                img_transform=transforms.Compose(
-                    self.train_transform[0] + [transforms.Normalize(mean=self.train_mean, std=self.train_std)]
-                ),
-                graph_transform=transforms.Compose(
-                    self.train_transform[1]
-                )
-            )
-            cv_val_transform = ImageGraphDualTransform(
-                img_transform=transforms.Compose(
-                    self.test_transform[0] + [transforms.Normalize(mean=self.train_mean, std=self.train_std)]
-                ),
-                graph_transform=transforms.Compose(
-                    self.test_transform[1]
-                )
-            )
+            cv_train_transform = transforms.Compose(
+                self.train_transform + [transforms.Normalize(mean=self.train_mean, std=self.train_std)])
+            cv_val_transform = transforms.Compose(
+                self.test_transform + [transforms.Normalize(mean=self.train_mean, std=self.train_std)])
 
             for t in range(k):
                 if t != i:
@@ -227,7 +215,7 @@ class SkinDiseaseClassifier():
                 )
 
                 inputs, metadata_input, labels = batch
-                cnn_inputs = torch.tensor([inp[0].numpy() for inp in inputs])
+                cnn_inputs = torch.tensor([inp[0].cpu().numpy() for inp in inputs])
                 gat_inputs = [inp[1] for inp in inputs]
                 gat_batch = (gat_inputs, labels)
 
@@ -393,7 +381,7 @@ class SkinDiseaseClassifier():
             input_loader = self.test_loader
         for i, batch in enumerate(input_loader, 0):
             inputs, metadata_input, labels = batch
-            cnn_inputs = torch.tensor([inp[0].numpy() for inp in inputs])
+            cnn_inputs = torch.tensor([inp[0].cpu().numpy() for inp in inputs])
             gat_inputs = [inp[1] for inp in inputs]
             gat_batch = (gat_inputs, labels)
             h, adj, src, tgt, Msrc, Mtgt, Mgraph, gat_labels = batch_graphs(gat_batch)
@@ -496,7 +484,7 @@ if __name__ == "__main__":
         test_graph_dir="Test_Graph_60_nodes",
         output_file_suffix='.npy'
     )
-    # dev_classifier.cross_validate(k=2)
+    dev_classifier.cross_validate(k=2)
     # print(dev_classifier.train_dataset[0])
     dev_classifier.train_model()
     dev_classifier.load_model()
