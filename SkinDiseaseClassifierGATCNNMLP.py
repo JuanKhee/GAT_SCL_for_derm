@@ -75,6 +75,8 @@ class SkinDiseaseClassifier():
             train_transform=None,
             test_transform=None,
             collate_fn=None,
+            train_graph_dir="Training_Graphs_50_nodes",
+            test_graph_dir="Test_Graphs_50_nodes",
             output_file_suffix='.npy'
     ):
         self.train_root_path = train_root_path
@@ -100,6 +102,7 @@ class SkinDiseaseClassifier():
                 transform=transforms.Compose(self.train_transform)
             ),
             self.train_metadata,
+            output_dir=train_graph_dir,
             output_file_suffix=output_file_suffix
         )
         self.test_dataset = ImageDatasetWithFile(
@@ -112,6 +115,7 @@ class SkinDiseaseClassifier():
                 transform=transforms.Compose(self.train_transform)
             ),
             self.test_metadata,
+            output_dir=test_graph_dir,
             output_file_suffix=output_file_suffix
         )
         self.train_loader = torch.utils.data.DataLoader(
@@ -488,7 +492,9 @@ if __name__ == "__main__":
         ,
         collate_fn=graph_metadata_collate,
         seed=57,
-        output_file_suffix='pkl.npy'
+        train_graph_dir="Training_Graph_60_nodes",
+        test_graph_dir="Test_Graph_60_nodes",
+        output_file_suffix='.npy'
     )
     # dev_classifier.cross_validate(k=2)
     print(dev_classifier.train_dataset[0])

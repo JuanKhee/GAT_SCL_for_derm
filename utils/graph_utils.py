@@ -421,7 +421,7 @@ def get_metadata_vector(metadata, image_id, age_mean=54.02848075841568, age_std=
 class ImageDatasetWithFile(Dataset):
     """Face Landmarks dataset."""
 
-    def __init__(self, dataset, metadata, output_file_suffix='.npy'):
+    def __init__(self, dataset, metadata, output_dir="Training_Graphs_50_nodes", output_file_suffix='.npy'):
         """
         Arguments:
             dataset - ImageFolder dataset
@@ -431,6 +431,7 @@ class ImageDatasetWithFile(Dataset):
         self.dataset = dataset
         self.metadata = metadata
         self.transform = dataset.transform
+        self.output_dir = output_dir
         self.output_file_suffix = output_file_suffix
 
     def __len__(self):
@@ -442,7 +443,7 @@ class ImageDatasetWithFile(Dataset):
         input_path = self.dataset.imgs[idx][0]
         input_dirs = input_path.split(os.sep)
         output_path = os.sep.join(input_dirs[:-3])
-        output_dir = f"Training_Graphs_50_nodes"
+        output_dir = self.output_dir
         output_dir = os.sep.join([output_path, output_dir, input_dirs[-2]])
         output_path = os.path.join(output_dir, input_dirs[-1].split('.')[0]+self.output_file_suffix)
         graph = np.load(output_path, allow_pickle=True)

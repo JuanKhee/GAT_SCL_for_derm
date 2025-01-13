@@ -70,7 +70,7 @@ def prepare_dataset_dir(img_path, metadata_path, id_col):
     return images, data_dir
 
 
-def prepare_graphs(dataset, nodes=50):
+def prepare_graphs(dataset, nodes=50, output_dir="Training_Graphs_50_nodes"):
     for i in tqdm(range(len(dataset))):
         img = dataset[i][0]
         pil_image_transform = transforms.ToPILImage()
@@ -78,11 +78,10 @@ def prepare_graphs(dataset, nodes=50):
         input_path = dataset.imgs[i][0]
         input_dirs = input_path.split(os.sep)
         output_path = os.sep.join(input_dirs[:-3])
-        output_dir = f"Training_Graphs_{nodes}_nodes"
-        output_dir = os.sep.join([output_path, output_dir, input_dirs[-2]])
-        output_path = os.path.join(output_dir, input_dirs[-1].split('.')[0]+'pkl')
-        os.makedirs(output_dir, exist_ok=True)
-        print(graph)
+        output_dir = output_dir
+        full_output_dir = os.sep.join([output_path, output_dir, input_dirs[-2]])
+        output_path = os.path.join(full_output_dir, input_dirs[-1].split('.')[0])
+        os.makedirs(full_output_dir, exist_ok=True)
 
         np.save(output_path, graph, allow_pickle=True)
     return True
@@ -131,5 +130,5 @@ if __name__ == "__main__":
         transform=transforms.ToTensor(),
     )
 
-    # print(prepare_graphs(train_dataset))
-    print(prepare_graphs(test_dataset))
+    print(prepare_graphs(train_dataset, nodes=60, output_dir="Training_Graph_60_nodes"))
+    print(prepare_graphs(test_dataset, nodes=60, output_dir="Test_Graph_60_nodes"))
