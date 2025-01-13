@@ -417,7 +417,7 @@ class SkinDiseaseClassifier():
             loss = self.criterion(outputs, labels)
             eval_loss += loss.item()
             outputs = outputs.max(1).indices.detach().cpu().numpy()
-            all_labels = np.concatenate((all_labels, labels), axis=None)
+            all_labels = np.concatenate((all_labels, labels.cpu().numpy()), axis=None)
             all_outputs = np.concatenate((all_outputs, outputs), axis=None)
 
         eval_loss = eval_loss/len(input_loader)
@@ -484,8 +484,8 @@ if __name__ == "__main__":
         test_graph_dir="Test_Graph_60_nodes",
         output_file_suffix='.npy'
     )
-    dev_classifier.cross_validate(k=2)
+    # dev_classifier.cross_validate(k=2)
     # print(dev_classifier.train_dataset[0])
-    dev_classifier.train_model()
+    dev_classifier.train_model(save_all=True)
     dev_classifier.load_model()
     dev_classifier.evaluate_model()
