@@ -140,7 +140,7 @@ class SkinDiseaseClassifier():
 
     def cross_validate(self, k=2, seed=0, cv_suffix=''):
 
-        assert 100 % k == 0
+        # assert 100 % k == 0
         torch.manual_seed(seed)
         k_datasets = torch.utils.data.random_split(self.train_dataset, [1/k]*k)
         torch.save(self.cnn_model.state_dict(), os.path.join(self.output_dir, f'cnn_model_common_init_state.pkl'))
