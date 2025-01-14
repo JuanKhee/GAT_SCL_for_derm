@@ -20,10 +20,11 @@ class GATLayerEdgeSoftmax(nn.Module):
         self.W_out = nn.Linear(d_i, d_o)
 
         self._init_weights()
+        self.dropout1 = nn.Dropout(0.3)
+        self.dropout2 = nn.Dropout(0.3)
         # print('init W_in', self.W_in.weight)
         # print('init a', self.a.weight)
         # print('init W_out', self.W_out.weight)
-
 
     def _init_weights(self):
         nn.init.xavier_uniform_(self.W_in.weight)
@@ -45,6 +46,7 @@ class GATLayerEdgeSoftmax(nn.Module):
         h = torch.cat([hsrc, htgt], dim=1)  # concatenate features of source and target
         wh = self.W_in(h) # Apply W weight matrix onto features
         sig_wh = self.act(wh)  # Apply non-linear activation onto weighted features
+        sig_wh = self.dropout1(sig_wh)
         e = self.a(sig_wh)  # GATV2 - apply a weight matrix onto activated weighted features to obtain raw attention
         assert not torch.isnan(e).any()
 
@@ -70,6 +72,7 @@ class GATLayerEdgeSoftmax(nn.Module):
 
         h_new_act = self.act(h_new_raw)
         assert not torch.isnan(h_new_act).any()
+        h_new_act = self.dropout1(h_new_act)
 
         return h_new_act
 
