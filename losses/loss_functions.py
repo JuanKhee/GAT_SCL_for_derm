@@ -156,9 +156,16 @@ class SupConCELoss(nn.Module):
                   if features.is_cuda
                   else torch.device('cpu'))
 
+        features_raw = features.clone().detach()
+
         if len(features.shape) < 3:
-            raise ValueError('`features` needs to be [bsz, n_views, ...],'
-                             'at least 3 dimensions are required')
+            if len(features) == len(labels):
+                bsz = labels.shape[0]
+                f1, f2 = torch.split(torch.cat([features, features], dim=0), [bsz, bsz], dim=0)
+                features = torch.cat([f1.unsqueeze(1), f2.unsqueeze(1)], dim=1)
+            else:
+                raise ValueError('`features` needs to be [bsz, n_views, ...],'
+                                 'at least 3 dimensions are required')
         if len(features.shape) > 3:
             features = features.view(features.shape[0], features.shape[1], -1)
 
@@ -233,8 +240,17 @@ class SupConCELoss(nn.Module):
                 reduction=self.reduction,
                 label_smoothing=self.label_smoothing,
             )
+        elif len(features_raw) == len(labels):
+            loss_CrossEntropy = F.cross_entropy(
+                features_raw,
+                labels,
+                weight=self.weight,
+                ignore_index=self.ignore_index,
+                reduction=self.reduction,
+                label_smoothing=self.label_smoothing,
+            )
         else:
-            loss_CrossEntropy = 0
+            loss_CrossEntropy = 0 #same as no ce
 
         loss = self.scl_weight * loss_SupCon + self.ce_weight * loss_CrossEntropy
 
