@@ -9,7 +9,7 @@ class GATLayerEdgeSoftmax(nn.Module):
     GAT layer with softmax attention distribution (May be prone to numerical errors)
     """
 
-    def __init__(self, d_i, d_o, act=F.leaky_relu, eps=1e-6):
+    def __init__(self, d_i, d_o, act=F.leaky_relu, eps=1e-6, dropout=0.3):
         super(GATLayerEdgeSoftmax, self).__init__()
         self.act = act
         self.eps = eps
@@ -20,8 +20,8 @@ class GATLayerEdgeSoftmax(nn.Module):
         self.W_out = nn.Linear(d_i, d_o)
 
         self._init_weights()
-        self.dropout1 = nn.Dropout(0.3)
-        self.dropout2 = nn.Dropout(0.3)
+        self.dropout1 = nn.Dropout(dropout)
+        self.dropout2 = nn.Dropout(dropout)
         # print('init W_in', self.W_in.weight)
         # print('init a', self.a.weight)
         # print('init W_out', self.W_out.weight)
@@ -79,12 +79,12 @@ class GATLayerEdgeSoftmax(nn.Module):
 
 class GATLayerMultiHead(nn.Module):
 
-    def __init__(self, d_in, d_out, num_heads):
+    def __init__(self, d_in, d_out, num_heads, dropout=0.3):
         super(GATLayerMultiHead, self).__init__()
 
         self.GAT_heads = nn.ModuleList(
             [
-                GATLayerEdgeSoftmax(d_in, d_out)
+                GATLayerEdgeSoftmax(d_in, d_out, dropout=dropout)
                 for _ in range(num_heads)
             ]
         )
@@ -95,7 +95,7 @@ class GATLayerMultiHead(nn.Module):
 
 class GAT_image(nn.Module):
 
-    def __init__(self, num_features, num_classes, num_heads=[2, 2, 2], layer_sizes=[32,64,64]):
+    def __init__(self, num_features, num_classes, num_heads=[2, 2, 2], layer_sizes=[32,64,64], dropouts=[0.3,0.3,0.3]):
         super(GAT_image, self).__init__()
 
         self.layer_heads = [1] + num_heads
@@ -106,14 +106,17 @@ class GAT_image(nn.Module):
         self.MLP_layer_sizes = [self.layer_heads[-1] * self.GAT_layer_sizes[-1], 32, num_classes]
         self.MLP_acts = [F.leaky_relu, lambda x: x]
 
+        self.dropouts = dropouts
+
         self.GAT_layers = nn.ModuleList(
             [
-                GATLayerMultiHead(d_in * heads_in, d_out, heads_out)
-                for d_in, d_out, heads_in, heads_out in zip(
+                GATLayerMultiHead(d_in * heads_in, d_out, heads_out, dropout=dropout)
+                for d_in, d_out, heads_in, heads_out, dropout in zip(
                     self.GAT_layer_sizes[:-1],
                     self.GAT_layer_sizes[1:],
                     self.layer_heads[:-1],
                     self.layer_heads[1:],
+                    self.dropouts
                 )
             ]
         )
