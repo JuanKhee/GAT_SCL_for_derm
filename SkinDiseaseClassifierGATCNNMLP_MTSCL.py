@@ -30,6 +30,7 @@ class SkinDiseaseClassifier():
             learning_rate=0.0001,
             criterion=nn.CrossEntropyLoss(),
             optimizer=optim.Adam,
+            weight_decay=1e-5,
             output_dir='model_result',
             num_workers=0,
             pin_memory=False,
@@ -43,6 +44,7 @@ class SkinDiseaseClassifier():
         self.epochs = epochs
         self.batch_size = batch_size
         self.learning_rate = learning_rate
+        self.weight_decay = weight_decay
 
         self.device = torch.device("cpu")
         if torch.cuda.is_available():
@@ -55,7 +57,8 @@ class SkinDiseaseClassifier():
         self.criterion = criterion
         self.optimizer = optimizer(
             list(self.cnn_model.parameters()) + list(self.gat_model.parameters()) + list(self.mlp_model.parameters()),
-            lr=learning_rate
+            weight_decay=self.weight_decay,
+            lr=self.learning_rate
         )
 
         self.output_dir = output_dir
