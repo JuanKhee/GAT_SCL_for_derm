@@ -243,11 +243,12 @@ class SkinDiseaseClassifier():
 
                 self.optimizer.zero_grad()
                 cnn_outputs = self.cnn_model(cnn_inputs)
-                # cnn_outputs = torch.nn.Sigmoid()(cnn_outputs)
+                cnn_outputs = torch.nn.Softmax()(cnn_outputs)
                 gat_outputs = self.gat_model(h, adj, src, tgt, Msrc, Mtgt, Mgraph)
-                # gat_outputs = torch.nn.Sigmoid()(gat_outputs)
+                gat_outputs = torch.nn.Softmax()(gat_outputs)
 
-                deep_block_output = cnn_outputs + gat_outputs
+                deep_block_output = torch.cat([cnn_outputs, gat_outputs], dim=1)
+                # deep_block_output = cnn_outputs + gat_outputs
                 mlp_input = torch.cat([deep_block_output, metadata_input], dim=1)
                 outputs = self.mlp_model(mlp_input)
 
@@ -383,45 +384,47 @@ class SkinDiseaseClassifier():
         if input_loader is None:
             input_loader = self.test_loader
         for i, batch in tqdm(enumerate(input_loader, 0)):
-            inputs, metadata_input, labels = batch
-            cnn_inputs = torch.tensor(np.array([inp[0].cpu().numpy() for inp in inputs]))
-            gat_inputs = [inp[1] for inp in inputs]
-            gat_batch = (gat_inputs, labels)
-            h, adj, src, tgt, Msrc, Mtgt, Mgraph, gat_labels = batch_graphs(gat_batch)
-            h, adj, src, tgt, Msrc, Mtgt, Mgraph = map(
-                torch.from_numpy,
-                (h, adj, src, tgt, Msrc, Mtgt, Mgraph)
-            )
-            h = h.to(self.device)
-            adj = adj.to(self.device)
-            src = src.to(self.device)
-            tgt = tgt.to(self.device)
-            Msrc = Msrc.to(self.device)
-            Mtgt = Mtgt.to(self.device)
-            Mgraph = Mgraph.to(self.device)
-            gat_labels = gat_labels.to(self.device)
+            with torch.no_grad():
+                inputs, metadata_input, labels = batch
+                cnn_inputs = torch.tensor(np.array([inp[0].cpu().numpy() for inp in inputs]))
+                gat_inputs = [inp[1] for inp in inputs]
+                gat_batch = (gat_inputs, labels)
+                h, adj, src, tgt, Msrc, Mtgt, Mgraph, gat_labels = batch_graphs(gat_batch)
+                h, adj, src, tgt, Msrc, Mtgt, Mgraph = map(
+                    torch.from_numpy,
+                    (h, adj, src, tgt, Msrc, Mtgt, Mgraph)
+                )
+                h = h.to(self.device)
+                adj = adj.to(self.device)
+                src = src.to(self.device)
+                tgt = tgt.to(self.device)
+                Msrc = Msrc.to(self.device)
+                Mtgt = Mtgt.to(self.device)
+                Mgraph = Mgraph.to(self.device)
+                gat_labels = gat_labels.to(self.device)
 
-            cnn_inputs = cnn_inputs.to(self.device)
-            labels = labels.to(self.device)
+                cnn_inputs = cnn_inputs.to(self.device)
+                labels = labels.to(self.device)
 
-            metadata_input = metadata_input.to(self.device)
+                metadata_input = metadata_input.to(self.device)
 
-            self.optimizer.zero_grad()
-            cnn_outputs = self.cnn_model(cnn_inputs)
-            cnn_outputs = torch.nn.Sigmoid()(cnn_outputs)
-            gat_outputs = self.gat_model(h, adj, src, tgt, Msrc, Mtgt, Mgraph)
-            gat_outputs = torch.nn.Sigmoid()(gat_outputs)
+                self.optimizer.zero_grad()
+                cnn_outputs = self.cnn_model(cnn_inputs)
+                cnn_outputs = torch.nn.Sigmoid()(cnn_outputs)
+                gat_outputs = self.gat_model(h, adj, src, tgt, Msrc, Mtgt, Mgraph)
+                gat_outputs = torch.nn.Sigmoid()(gat_outputs)
 
-            deep_block_output = cnn_outputs + gat_outputs
-            mlp_input = torch.cat([deep_block_output, metadata_input], dim=1)
-            outputs = self.mlp_model(mlp_input)
-            # outputs = torch.nn.Softmax(dim=1)(outputs)
+                deep_block_output = torch.cat([cnn_outputs, gat_outputs], dim=1)
+                # deep_block_output = cnn_outputs + gat_outputs
+                mlp_input = torch.cat([deep_block_output, metadata_input], dim=1)
+                outputs = self.mlp_model(mlp_input)
+                # outputs = torch.nn.Softmax(dim=1)(outputs)
 
-            loss = self.criterion(outputs, labels)
-            eval_loss += loss.item()
-            outputs = outputs.max(1).indices.detach().cpu().numpy()
-            all_labels = np.concatenate((all_labels, labels.cpu().numpy()), axis=None)
-            all_outputs = np.concatenate((all_outputs, outputs), axis=None)
+                loss = self.criterion(outputs, labels)
+                eval_loss += loss.item()
+                outputs = outputs.max(1).indices.detach().cpu().numpy()
+                all_labels = np.concatenate((all_labels, labels.cpu().numpy()), axis=None)
+                all_outputs = np.concatenate((all_outputs, outputs), axis=None)
 
         eval_loss = eval_loss/len(input_loader)
         print(classification_report(all_labels, all_outputs))
@@ -437,11 +440,13 @@ if __name__ == "__main__":
     np.set_printoptions(threshold=sys.maxsize)
 
     DEEP_BLOCK_OUTPUT = 16
+    CNN_OUTPUT = 16
+    GAT_OUTPUT = 16
     NUM_CLASSES = 8
 
-    CNN_model = CNNModel(DEEP_BLOCK_OUTPUT)
-    GAT_model = GAT_image(GRAPH_FEATURES,DEEP_BLOCK_OUTPUT, num_heads=[2, 2, 2], layer_sizes=[32,64,64])
-    MLP_model = torch.nn.Linear(DEEP_BLOCK_OUTPUT+METADATA_FEATURES, NUM_CLASSES)
+    CNN_model = CNNModel(CNN_OUTPUT)
+    GAT_model = GAT_image(GRAPH_FEATURES,GAT_OUTPUT, num_heads=[2, 2, 2], layer_sizes=[32,64,64])
+    MLP_model = torch.nn.Linear(CNN_OUTPUT+GAT_OUTPUT+METADATA_FEATURES, NUM_CLASSES)
     nn.init.xavier_uniform_(MLP_model.weight)
     
     dev_classifier = SkinDiseaseClassifier(
@@ -489,6 +494,6 @@ if __name__ == "__main__":
     )
     # dev_classifier.cross_validate(k=2)
     # print(dev_classifier.train_dataset[0])
-    dev_classifier.train_model(save_all=True)
+    # dev_classifier.train_model(save_all=True)
     dev_classifier.load_model()
     dev_classifier.evaluate_model()
