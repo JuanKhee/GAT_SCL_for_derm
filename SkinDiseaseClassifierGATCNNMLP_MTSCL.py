@@ -244,14 +244,15 @@ class SkinDiseaseClassifier():
 
                 self.optimizer.zero_grad()
                 cnn_outputs = self.cnn_model(cnn_inputs)
-                # cnn_outputs = torch.nn.Sigmoid()(cnn_outputs)
+                cnn_outputs = torch.nn.Sigmoid()(cnn_outputs)
                 gat_outputs = self.gat_model(h, adj, src, tgt, Msrc, Mtgt, Mgraph)
-                # gat_outputs = torch.nn.Sigmoid()(gat_outputs)
+                gat_outputs = torch.nn.Sigmoid()(gat_outputs)
 
-                deep_block_output = cnn_outputs + gat_outputs
+                deep_block_output = torch.cat([cnn_outputs, gat_outputs], dim=1)
+                # deep_block_output = cnn_outputs + gat_outputs
                 mlp_input = torch.cat([deep_block_output, metadata_input], dim=1)
                 outputs = self.mlp_model(mlp_input)
-
+                # outputs = torch.nn.Softmax(dim=1)(outputs)
                 bsz = labels.shape[0]
 
                 # outputs = torch.nn.Softmax(dim=1)(outputs)
@@ -415,7 +416,8 @@ class SkinDiseaseClassifier():
             gat_outputs = self.gat_model(h, adj, src, tgt, Msrc, Mtgt, Mgraph)
             gat_outputs = torch.nn.Sigmoid()(gat_outputs)
 
-            deep_block_output = cnn_outputs + gat_outputs
+            deep_block_output = torch.cat([cnn_outputs, gat_outputs], dim=1)
+            # deep_block_output = cnn_outputs + gat_outputs
             mlp_input = torch.cat([deep_block_output, metadata_input], dim=1)
             outputs = self.mlp_model(mlp_input)
             # outputs = torch.nn.Softmax(dim=1)(outputs)
@@ -445,7 +447,7 @@ if __name__ == "__main__":
 
     CNN_model = CNNModel(DEEP_BLOCK_OUTPUT)
     GAT_model = GAT_image(GRAPH_FEATURES,DEEP_BLOCK_OUTPUT, num_heads=[1, 1, 1], layer_sizes=[4,16,16])
-    MLP_model = torch.nn.Linear(DEEP_BLOCK_OUTPUT+METADATA_FEATURES, NUM_CLASSES)
+    MLP_model = torch.nn.Linear(DEEP_BLOCK_OUTPUT*2+METADATA_FEATURES, NUM_CLASSES)
     nn.init.xavier_uniform_(MLP_model.weight)
     
     dev_classifier = SkinDiseaseClassifier(
