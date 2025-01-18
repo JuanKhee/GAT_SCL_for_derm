@@ -41,18 +41,24 @@ def get_unique_metadata_values(metadata, id_cols):
 
 
 if __name__ == "__main__":
-    from utils.data_utils import get_metadata_vector
-    # dataset = torchvision.datasets.ImageFolder(
-    #     r"C:\Users\HP-VICTUS\Documents\Masters\WQF7023 AI Project\dataset\ISIC_2019_Training_Input\ISIC_2019_Training_Input",
-    #     transform=transforms.Compose([transforms.Resize((255, 255)), transforms.ToTensor()])
-    # )
+    # from utils.graph_utils import get_metadata_vector
+    train_dataset = torchvision.datasets.ImageFolder(
+        r"C:\Users\HP-VICTUS\Documents\Masters\WQF7023 AI Project\dataset\ISIC_2019_Training_Input\ISIC_2019_Training_Input",
+        transform=transforms.Compose([transforms.Resize((255, 255)), transforms.ToTensor()])
+    )
+    test_dataset = torchvision.datasets.ImageFolder(
+        r"C:\Users\HP-VICTUS\Documents\Masters\WQF7023 AI Project\dataset\ISIC_2019_Test_Input\ISIC_2019_Test_Input",
+        transform=transforms.Compose([transforms.Resize((255, 255)), transforms.ToTensor()])
+    )
+    print('Number of training images', len(train_dataset))
+    print('Number of testing images', len(test_dataset))
     #
-    # loader = torch.utils.data.DataLoader(dataset,
+    # train_loader = torch.utils.data.DataLoader(train_dataset,
     #                                      batch_size=10,
     #                                      num_workers=0,
     #                                      shuffle=False)
     #
-    # mean,std = get_train_mean_std(loader)
+    # mean,std = get_train_mean_std(train_loader)
     # print(mean,std)
     # # [0.6678, 0.5298, 0.5245], [0.2232, 0.2030, 0.2146]
     #
@@ -61,34 +67,34 @@ if __name__ == "__main__":
     # # [0.06733981 0.25809709 0.20380583 0.01856311 0.3512233  1.
     # #  0.0487767  0.01965049]
 
-    train_metadata = pd.read_csv(r"metadata\ISIC_2019_Training_Metadata.csv")
-    train_metadata_unique_val = get_unique_metadata_values(train_metadata, ['image','lesion_id'])
-    print(train_metadata_unique_val)
-    # 'anatom_site_general': ['anterior torso', 'upper extremity', 'posterior torso', 'lower extremity', nan, 'lateral torso', 'head/neck', 'palms/soles', 'oral/genital'],
-    # 'sex': ['female', 'male', nan]
-
-    age_mean = np.mean(train_metadata['age_approx'])
-    age_std = np.std(train_metadata['age_approx'])
-    print(age_mean,age_std)
-
-    site = sorted([s for s in train_metadata_unique_val['anatom_site_general'] if type(s) == str])
-    print(site)
-    # ['anterior torso', 'head/neck', 'lateral torso', 'lower extremity', 'oral/genital', 'palms/soles', 'posterior torso', 'upper extremity']
-
-    sex = sorted([s for s in train_metadata_unique_val['sex'] if type(s) == str])
-    print(sex)
-    # ['female', 'male']
-
-    print(get_metadata_vector(metadata=train_metadata, image_id='ISIC_0000000'))
-    # [0.05358448431063522, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0]
-
-    dataset = torchvision.datasets.ImageFolder(
-        r"C:\Users\HP-VICTUS\Documents\Masters\WQF7023 AI Project\dataset\ISIC_2019_Training_Input\ISIC_2019_Training_Input",
-        transform=transforms.Compose([transforms.Resize((255, 255)), transforms.ToTensor()])
-    )
-
-    print(dataset.imgs[0][0].split(os.sep)[-1].split('.')[0])
-    # ISIC_0024468
-    print(get_metadata_vector(metadata=train_metadata, image_id=dataset.imgs[0][0].split(os.sep)[-1].split('.')[0]))
-    # [1.1566914947956077, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1]
+    # train_metadata = pd.read_csv(r"metadata\ISIC_2019_Training_Metadata.csv")
+    # train_metadata_unique_val = get_unique_metadata_values(train_metadata, ['image','lesion_id'])
+    # print(train_metadata_unique_val)
+    # # 'anatom_site_general': ['anterior torso', 'upper extremity', 'posterior torso', 'lower extremity', nan, 'lateral torso', 'head/neck', 'palms/soles', 'oral/genital'],
+    # # 'sex': ['female', 'male', nan]
+    #
+    # age_mean = np.mean(train_metadata['age_approx'])
+    # age_std = np.std(train_metadata['age_approx'])
+    # print(age_mean,age_std)
+    #
+    # site = sorted([s for s in train_metadata_unique_val['anatom_site_general'] if type(s) == str])
+    # print(site)
+    # # ['anterior torso', 'head/neck', 'lateral torso', 'lower extremity', 'oral/genital', 'palms/soles', 'posterior torso', 'upper extremity']
+    #
+    # sex = sorted([s for s in train_metadata_unique_val['sex'] if type(s) == str])
+    # print(sex)
+    # # ['female', 'male']
+    #
+    # print(get_metadata_vector(metadata=train_metadata, image_id='ISIC_0000000'))
+    # # [0.05358448431063522, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0]
+    #
+    # dataset = torchvision.datasets.ImageFolder(
+    #     r"C:\Users\HP-VICTUS\Documents\Masters\WQF7023 AI Project\dataset\ISIC_2019_Training_Input\ISIC_2019_Training_Input",
+    #     transform=transforms.Compose([transforms.Resize((255, 255)), transforms.ToTensor()])
+    # )
+    #
+    # print(dataset.imgs[0][0].split(os.sep)[-1].split('.')[0])
+    # # ISIC_0024468
+    # print(get_metadata_vector(metadata=train_metadata, image_id=dataset.imgs[0][0].split(os.sep)[-1].split('.')[0]))
+    # # [1.1566914947956077, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1]
 

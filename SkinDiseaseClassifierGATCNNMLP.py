@@ -243,16 +243,11 @@ class SkinDiseaseClassifier():
 
                 self.optimizer.zero_grad()
                 cnn_outputs = self.cnn_model(cnn_inputs)
-                cnn_outputs = torch.nn.Softmax()(cnn_outputs)
                 gat_outputs = self.gat_model(h, adj, src, tgt, Msrc, Mtgt, Mgraph)
-                gat_outputs = torch.nn.Softmax()(gat_outputs)
 
                 deep_block_output = torch.cat([cnn_outputs, gat_outputs], dim=1)
-                # deep_block_output = cnn_outputs + gat_outputs
                 mlp_input = torch.cat([deep_block_output, metadata_input], dim=1)
                 outputs = self.mlp_model(mlp_input)
-
-                # outputs = torch.nn.Softmax(dim=1)(outputs)
 
                 # CEloss calls softmax implicitly
                 loss = self.criterion(outputs, labels)
@@ -410,15 +405,11 @@ class SkinDiseaseClassifier():
 
                 self.optimizer.zero_grad()
                 cnn_outputs = self.cnn_model(cnn_inputs)
-                cnn_outputs = torch.nn.Sigmoid()(cnn_outputs)
                 gat_outputs = self.gat_model(h, adj, src, tgt, Msrc, Mtgt, Mgraph)
-                gat_outputs = torch.nn.Sigmoid()(gat_outputs)
 
                 deep_block_output = torch.cat([cnn_outputs, gat_outputs], dim=1)
-                # deep_block_output = cnn_outputs + gat_outputs
                 mlp_input = torch.cat([deep_block_output, metadata_input], dim=1)
                 outputs = self.mlp_model(mlp_input)
-                # outputs = torch.nn.Softmax(dim=1)(outputs)
 
                 loss = self.criterion(outputs, labels)
                 eval_loss += loss.item()
@@ -454,7 +445,7 @@ if __name__ == "__main__":
         gat_model=GAT_model,
         mlp_model=MLP_model,
         epochs=2,
-        batch_size=8,
+        batch_size=1,
         output_dir='dev_model_result_gatcnnmlp_metadata'
     )
     dev_classifier.create_dataloader(
@@ -494,6 +485,6 @@ if __name__ == "__main__":
     )
     # dev_classifier.cross_validate(k=2)
     # print(dev_classifier.train_dataset[0])
-    # dev_classifier.train_model(save_all=True)
+    dev_classifier.train_model(save_all=True)
     dev_classifier.load_model()
     dev_classifier.evaluate_model()
