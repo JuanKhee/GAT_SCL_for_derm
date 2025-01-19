@@ -23,6 +23,7 @@ class SkinDiseaseClassifier():
             self,
             cnn_model,
             gat_model,
+            mlp_model,
             epochs=10,
             batch_size=32,
             learning_rate=0.0001,
@@ -38,6 +39,7 @@ class SkinDiseaseClassifier():
 
         self.cnn_model = cnn_model
         self.gat_model = gat_model
+        self.mlp_model = mlp_model
         self.epochs = epochs
         self.batch_size = batch_size
         self.learning_rate = learning_rate
@@ -49,10 +51,11 @@ class SkinDiseaseClassifier():
 
         self.cnn_model.to(self.device)
         self.gat_model.to(self.device)
+        self.mlp_model.to(self.device)
 
         self.criterion = criterion
         self.optimizer = optimizer(
-            list(self.cnn_model.parameters()) + list(self.gat_model.parameters()),
+            list(self.cnn_model.parameters()) + list(self.gat_model.parameters()) + list(self.mlp_model.parameters()),
             weight_decay=self.weight_decay,
             lr=self.learning_rate
         )
@@ -147,10 +150,12 @@ class SkinDiseaseClassifier():
         k_datasets = torch.utils.data.random_split(self.train_dataset, [1 / k] * k)
         torch.save(self.cnn_model.state_dict(), os.path.join(self.output_dir, f'cnn_model_common_init_state.pkl'))
         torch.save(self.gat_model.state_dict(), os.path.join(self.output_dir, f'gat_model_common_init_state.pkl'))
+        torch.save(self.mlp_model.state_dict(), os.path.join(self.output_dir, f'mlp_model_common_init_state.pkl'))
         for i, dataset in enumerate(k_datasets):
             print(f'fold {i + 1}/{k}')
             self.cnn_model.load_state_dict(torch.load(os.path.join(self.output_dir, 'cnn_model_common_init_state.pkl')))
             self.gat_model.load_state_dict(torch.load(os.path.join(self.output_dir, 'gat_model_common_init_state.pkl')))
+            self.mlp_model.load_state_dict(torch.load(os.path.join(self.output_dir, 'mlp_model_common_init_state.pkl')))
             self.val_dataset = dataset
             print(f'Training Size: {len(self.train_dataset)}; Validation Size: {len(self.val_dataset)}', flush=True)
 
@@ -207,6 +212,7 @@ class SkinDiseaseClassifier():
             epoch_acc = []
             self.cnn_model.train()
             self.gat_model.train()
+            self.mlp_model.train()
             epoch_tracker = tqdm(self.train_loader)
             for batch in epoch_tracker:
                 epoch_tracker.set_description(
@@ -241,7 +247,9 @@ class SkinDiseaseClassifier():
                 cnn_outputs = self.cnn_model(cnn_inputs)
                 gat_outputs = self.gat_model(h, adj, src, tgt, Msrc, Mtgt, Mgraph)
 
-                outputs = cnn_outputs + gat_outputs
+                deep_block_output = torch.cat([cnn_outputs, gat_outputs], dim=1)
+                # mlp_input = torch.cat([deep_block_output, metadata_input], dim=1)
+                outputs = self.mlp_model(deep_block_output)
 
                 # CEloss calls softmax implicitly
                 loss = self.criterion(outputs, labels)
@@ -267,10 +275,15 @@ class SkinDiseaseClassifier():
                     self.gat_model.state_dict(),
                     os.path.join(self.output_dir, f'gat_model_epoch{epoch}{output_suffix}.pkl')
                 )
+                torch.save(
+                    self.mlp_model.state_dict(),
+                    os.path.join(self.output_dir, f'mlp_model_epoch{epoch}{output_suffix}.pkl')
+                )
 
             if self.val_loader is not None:
                 self.cnn_model.eval()
                 self.gat_model.eval()
+                self.mlp_model.eval()
                 val_labels, val_outputs, val_loss, val_report = self.evaluate_model(self.val_loader)
                 val_acc = val_report['accuracy']
                 val_loss_progress[epoch] = val_loss
@@ -283,6 +296,8 @@ class SkinDiseaseClassifier():
                                os.path.join(self.output_dir, f'best_cnn_model{output_suffix}.pkl'))
                     torch.save(self.gat_model.state_dict(),
                                os.path.join(self.output_dir, f'best_gat_model{output_suffix}.pkl'))
+                    torch.save(self.mlp_model.state_dict(),
+                               os.path.join(self.output_dir, f'best_mlp_model{output_suffix}.pkl'))
                 else:
                     if val_loss < best_loss:
                         best_loss = val_loss
@@ -292,6 +307,8 @@ class SkinDiseaseClassifier():
                                    os.path.join(self.output_dir, f'best_cnn_model{output_suffix}.pkl'))
                         torch.save(self.gat_model.state_dict(),
                                    os.path.join(self.output_dir, f'best_gat_model{output_suffix}.pkl'))
+                        torch.save(self.mlp_model.state_dict(),
+                                   os.path.join(self.output_dir, f'best_mlp_model{output_suffix}.pkl'))
 
                 print(
                     f"Epoch {epoch}: train_loss {train_loss}; train_acc {train_acc}; val_loss {val_loss}; val_acc {val_acc}")
@@ -305,6 +322,8 @@ class SkinDiseaseClassifier():
                                os.path.join(self.output_dir, f'best_cnn_model{output_suffix}.pkl'))
                     torch.save(self.gat_model.state_dict(),
                                os.path.join(self.output_dir, f'best_gat_model{output_suffix}.pkl'))
+                    torch.save(self.mlp_model.state_dict(),
+                               os.path.join(self.output_dir, f'best_mlp_model{output_suffix}.pkl'))
                 else:
                     if train_loss < best_loss:
                         best_loss = np.average(epoch_loss)
@@ -314,6 +333,8 @@ class SkinDiseaseClassifier():
                                    os.path.join(self.output_dir, f'best_cnn_model{output_suffix}.pkl'))
                         torch.save(self.gat_model.state_dict(),
                                    os.path.join(self.output_dir, f'best_gat_model{output_suffix}.pkl'))
+                        torch.save(self.mlp_model.state_dict(),
+                                   os.path.join(self.output_dir, f'best_mlp_model{output_suffix}.pkl'))
 
                 print(f"Epoch {epoch}: train_loss {train_loss}; train_acc {train_acc}")
 
@@ -321,6 +342,8 @@ class SkinDiseaseClassifier():
                    os.path.join(self.output_dir, f'final_cnn_model{output_suffix}.pkl'))
         torch.save(self.gat_model.state_dict(),
                    os.path.join(self.output_dir, f'final_gat_model{output_suffix}.pkl'))
+        torch.save(self.mlp_model.state_dict(),
+                   os.path.join(self.output_dir, f'final_mlp_model{output_suffix}.pkl'))
 
         training_loss = pd.DataFrame(
             {'epoch': train_loss_progress.keys(), 'loss': train_loss_progress.values(),
@@ -338,12 +361,15 @@ class SkinDiseaseClassifier():
     def load_model(self):
         assert self.cnn_model is not None
         assert self.gat_model is not None
+        assert self.mlp_model is not None
         self.cnn_model.load_state_dict(torch.load(os.path.join(self.output_dir, 'best_cnn_model.pkl')))
         self.gat_model.load_state_dict(torch.load(os.path.join(self.output_dir, 'best_gat_model.pkl')))
+        self.mlp_model.load_state_dict(torch.load(os.path.join(self.output_dir, 'best_mlp_model.pkl')))
 
     def evaluate_model(self, input_loader=None):
         assert self.cnn_model is not None
         assert self.gat_model is not None
+        assert self.mlp_model is not None
         print(f'Test size: {len(self.test_dataset)}')
         all_labels = np.array([])
         all_outputs = np.array([])
@@ -351,6 +377,7 @@ class SkinDiseaseClassifier():
 
         self.cnn_model.eval()
         self.gat_model.eval()
+        self.mlp_model.eval()
         if input_loader is None:
             input_loader = self.test_loader
         for i, batch in tqdm(enumerate(input_loader, 0)):
@@ -382,7 +409,9 @@ class SkinDiseaseClassifier():
                 cnn_outputs = self.cnn_model(cnn_inputs)
                 gat_outputs = self.gat_model(h, adj, src, tgt, Msrc, Mtgt, Mgraph)
 
-                outputs = cnn_outputs + gat_outputs
+                deep_block_output = torch.cat([cnn_outputs, gat_outputs], dim=1)
+                # mlp_input = torch.cat([deep_block_output, metadata_input], dim=1)
+                outputs = self.mlp_model(deep_block_output)
 
                 loss = self.criterion(outputs, labels)
                 eval_loss += loss.item()
@@ -403,17 +432,24 @@ if __name__ == "__main__":
     from utils.graph_utils import ImgToGraphTransform, graph_metadata_collate, GRAPH_FEATURES, METADATA_FEATURES
 
     np.set_printoptions(threshold=sys.maxsize)
+
+    DEEP_BLOCK_OUTPUT = 16
+    CNN_OUTPUT = 16
+    GAT_OUTPUT = 16
     NUM_CLASSES = 8
 
-    CNN_model = CNNModel(NUM_CLASSES)
-    GAT_model = GAT_image(GRAPH_FEATURES, NUM_CLASSES, num_heads=[2, 2, 2], layer_sizes=[32, 64, 64])
+    CNN_model = CNNModel(CNN_OUTPUT)
+    GAT_model = GAT_image(GRAPH_FEATURES, GAT_OUTPUT, num_heads=[2, 2, 2], layer_sizes=[32, 64, 64])
+    MLP_model = torch.nn.Linear(CNN_OUTPUT + GAT_OUTPUT, NUM_CLASSES)
+    nn.init.xavier_uniform_(MLP_model.weight)
 
     dev_classifier = SkinDiseaseClassifier(
         cnn_model=CNN_model,
         gat_model=GAT_model,
+        mlp_model=MLP_model,
         epochs=2,
         batch_size=1,
-        output_dir='dev_model_result_gatcnn'
+        output_dir='dev_model_result_gatcnnmlp_metadata'
     )
     dev_classifier.create_dataloader(
         train_root_path=r'dev_images\train',
@@ -421,6 +457,7 @@ if __name__ == "__main__":
         train_metadata_path=r'metadata\ISIC_2019_Training_Metadata.csv',
         test_metadata_path=r'metadata\ISIC_2019_Test_Metadata.csv',
         train_transform=[
+            # [
             transforms.RandomResizedCrop(size=(255, 255), scale=(0.2, 1.)),
             transforms.RandomHorizontalFlip(),
             transforms.RandomApply([
@@ -428,10 +465,19 @@ if __name__ == "__main__":
             ], p=0.8),
             transforms.RandomGrayscale(p=0.2),
             transforms.ToTensor(),
+            # ],
+            # [
+            #     transforms.ToTensor()
+            # ]
         ],
         test_transform=[
+            # [
             transforms.Resize(size=(255, 255)),
             transforms.ToTensor(),
+            # ],
+            # [
+            #     transforms.ToTensor()
+            # ]
         ]
         ,
         collate_fn=graph_metadata_collate,
@@ -440,6 +486,8 @@ if __name__ == "__main__":
         test_graph_dir="Test_Graph_60_nodes",
         output_file_suffix='.npy'
     )
+    # dev_classifier.cross_validate(k=2)
+    # print(dev_classifier.train_dataset[0])
     dev_classifier.train_model(save_all=True)
     dev_classifier.load_model()
     dev_classifier.evaluate_model()
