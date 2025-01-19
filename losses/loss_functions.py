@@ -233,27 +233,27 @@ class SupConCELoss(nn.Module):
         loss_SupCon = loss_SupCon.view(anchor_count, batch_size).mean()
 
         if (ce_outputs is not None) & (ce_labels is not None):
-            loss_CrossEntropy = F.cross_entropy(
-                ce_outputs,
-                ce_labels,
+            loss_CrossEntropy = torch.nn.CrossEntropyLoss(
                 weight=self.weight,
                 ignore_index=self.ignore_index,
                 reduction=self.reduction,
-                label_smoothing=self.label_smoothing,
-            )
+                label_smoothing=self.label_smoothing
+            )(ce_outputs,ce_labels)
+
         elif len(features_raw) == len(labels):
-            loss_CrossEntropy = F.cross_entropy(
-                features_raw,
-                labels,
+            loss_CrossEntropy = torch.nn.CrossEntropyLoss(
                 weight=self.weight,
                 ignore_index=self.ignore_index,
                 reduction=self.reduction,
-                label_smoothing=self.label_smoothing,
-            )
+                label_smoothing=self.label_smoothing
+            )(features_raw,labels)
         else:
             loss_CrossEntropy = 0 #same as no ce
 
+        print(loss_SupCon)
+        print(loss_CrossEntropy)
         loss = self.scl_weight * loss_SupCon + self.ce_weight * loss_CrossEntropy
+        print(loss)
 
         return loss
 
