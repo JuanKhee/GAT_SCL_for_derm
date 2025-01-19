@@ -161,6 +161,7 @@ class SupConCELoss(nn.Module):
         if len(features.shape) < 3:
             if len(features) == len(labels):
                 bsz = labels.shape[0]
+                features = torch.nn.Softmax()(features)
                 f1, f2 = torch.split(torch.cat([features, features], dim=0), [bsz, bsz], dim=0)
                 features = torch.cat([f1.unsqueeze(1), f2.unsqueeze(1)], dim=1)
             else:
