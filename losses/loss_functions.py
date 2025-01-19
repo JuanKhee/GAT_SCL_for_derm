@@ -250,10 +250,7 @@ class SupConCELoss(nn.Module):
         else:
             loss_CrossEntropy = 0 #same as no ce
 
-        print(loss_SupCon)
-        print(loss_CrossEntropy)
         loss = self.scl_weight * loss_SupCon + self.ce_weight * loss_CrossEntropy
-        print(loss)
 
         return loss
 
