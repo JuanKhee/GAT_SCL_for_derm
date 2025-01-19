@@ -251,5 +251,3 @@ if __name__ == "__main__":
         seed=57
     )
     dev_classifier.train_model()
-    # dev_classifier.load_model()
-    # dev_classifier.evaluate_model()

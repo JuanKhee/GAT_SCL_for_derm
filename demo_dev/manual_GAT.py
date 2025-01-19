@@ -45,17 +45,17 @@ feat_size = 5
 
 for i, dim in enumerate(layer_dim):
     print(dim)
-    W_in[i] = torch.nn.Linear(*dim)
+    W_in[i] = torch.nn.Linear(*dim, bias=False)
     # a[i] = torch.nn.Linear(dim[1],dim[1])
-    a[i] = torch.nn.Linear(dim[1],1)
-    W_out[i] = torch.nn.Linear(feat_size,dim[1])
+    a[i] = torch.nn.Linear(dim[1],1, bias=False)
+    W_out[i] = torch.nn.Linear(feat_size,dim[1],bias=False)
     with torch.no_grad():
         W_in[i].weight = torch.nn.Parameter(torch.ones(dim).T)
-        W_in[i].bias = torch.nn.Parameter(torch.ones(dim[1]))
+        W_in[i].bias = torch.nn.Parameter(torch.zeros(dim[1]))
         a[i].weight = torch.nn.Parameter(torch.ones(dim[1],1).T)
-        a[i].bias = torch.nn.Parameter(torch.ones(1))
+        a[i].bias = torch.nn.Parameter(torch.zeros(1))
         W_out[i].weight = torch.nn.Parameter(torch.ones(feat_size,dim[1]).T)
-        W_out[i].bias = torch.nn.Parameter(torch.ones(dim[1]))
+        W_out[i].bias = torch.nn.Parameter(torch.zeros(dim[1]))
 
 
 NP_TORCH_FLOAT_DTYPE = np.float32
@@ -123,10 +123,10 @@ for layer in range(len(layer_dim)):
     exp_e = torch.exp(e)
     print(f'exp_e', exp_e)
 
-    sum_exp_e = torch.mm(torch.from_numpy(Mtgt), exp_e.type(torch.DoubleTensor))
-    print(Mtgt)
+    sum_exp_e = torch.mm(torch.from_numpy(Msrc), exp_e.type(torch.DoubleTensor))
+    print(Msrc)
     print(f'sum_exp_e', sum_exp_e)
-    sum_exp_e = sum_exp_e[tgt]
+    sum_exp_e = sum_exp_e[src]
     print(f'sum_exp_e', sum_exp_e)
 
     alpha = exp_e/sum_exp_e
