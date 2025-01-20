@@ -133,7 +133,7 @@ class SkinDiseaseClassifier():
         self.test_loader = torch.utils.data.DataLoader(
             self.test_dataset,
             batch_size=self.batch_size,
-            shuffle=True,
+            shuffle=False,
             collate_fn=collate_fn,
             num_workers=self.num_workers,
             pin_memory=self.pin_memory

@@ -31,7 +31,7 @@ class GATLayerEdgeSoftmax(nn.Module):
         nn.init.xavier_uniform_(self.a.weight)
         nn.init.xavier_uniform_(self.W_out.weight)
 
-    def forward(self, x, adj, src, tgt, Msrc, Mtgt):
+    def forward(self, x, adj, src, tgt, Msrc, Mtgt, return_attention=False):
         """
         features -> N,i node features
         adj -> N,N adjacency matrix
@@ -73,6 +73,9 @@ class GATLayerEdgeSoftmax(nn.Module):
         h_new_act = self.act(h_new_raw)
         assert not torch.isnan(h_new_act).any()
         h_new_act = self.dropout1(h_new_act)
+
+        if return_attention:
+            return h_new_act, alpha
 
         return h_new_act
 
